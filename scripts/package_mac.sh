@@ -11,7 +11,8 @@ mkdir -p "$out/Contents/MacOS" "$out/Contents/Resources"
 cp "$here/app/.build/release/AtlasApp" "$out/Contents/MacOS/Atlas"
 # SwiftPM resources (the UX catalogue) live in a bundle next to the executable; `Bundle.module` finds it in Contents/Resources of the app. Without it the app traps on its first lookup.
 for resources in "$here"/app/.build/release/*.bundle; do cp -R "$resources" "$out/Contents/Resources/"; done
-test -d "$out/Contents/Resources/AtlasKit_AtlasKit.bundle" || { echo "the AtlasKit resource bundle is missing from the app" >&2; exit 1; }
+# SwiftPM names the bundle <package>_<target>.bundle; the package is "Atlas", so this is Atlas_AtlasKit.bundle
+compgen -G "$out/Contents/Resources/*_AtlasKit.bundle" >/dev/null || { echo "the AtlasKit resource bundle is missing from the app" >&2; exit 1; }
 python3 -m venv "$out/Contents/Resources/python"
 py="$out/Contents/Resources/python/bin"
 if [ "$(uname -s)" = "Darwin" ]; then  # sqlcipher3-binary has no macOS wheel: build the binding against Homebrew's SQLCipher

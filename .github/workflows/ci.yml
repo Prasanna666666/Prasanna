@@ -125,19 +125,25 @@ jobs:
       - name: Install the browser the engine drives (Playwright Chromium)
         run: python -m playwright install --with-deps chromium
       - name: Tests (log and JUnit report saved for the artefact scan)
+        id: tests
         shell: bash
         run: |
-          set -eo pipefail  # a failing pytest must fail the job even though its output is piped to the log
+          set -o pipefail  # a failing pytest is not hidden by the pipe to the log
           mkdir -p ../artefacts
-          pytest -q --junitxml=../artefacts/junit-${{ matrix.python }}.xml 2>&1 | tee ../artefacts/pytest-${{ matrix.python }}.log
+          status=0
+          pytest -q --junitxml=../artefacts/junit-${{ matrix.python }}.xml 2>&1 | tee ../artefacts/pytest-${{ matrix.python }}.log || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"  # recorded here and enforced by the last step, so the scan and the publication decision still run when tests fail
       - name: Scan the test artefacts for personal-content sentinels
-        if: always()  # the log and report are kept and scanned whether or not the tests passed
         run: python tools/scan_artefacts.py ../artefacts
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - uses: actions/upload-artifact@v4  # runs only when the scan passed (the default success() condition): a log that failed the privacy scan is never published
         with:
           name: core-test-artefacts-${{ matrix.python }}
           path: artefacts
+      - name: Fail the job if the tests failed
+        if: ${{ always() && steps.tests.outputs.status != '' && steps.tests.outputs.status != '0' }}
+        run: |
+          echo "pytest exited with status ${{ steps.tests.outputs.status }}" >&2
+          exit 1
   macos:
     runs-on: macos-latest
     steps:

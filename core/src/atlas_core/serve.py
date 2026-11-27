@@ -25,6 +25,9 @@ CODE_SHAPE = re.compile(r"[A-Za-z0-9_-]{16,64}\Z")
 FactoryT = Callable[[Path, Path, str | None, HostOptions], CoreConfig]
 EXIT_REFUSED = 4
 EXIT_BUSY = 5  # another Core owns this data folder
+EXIT_SHUTDOWN_INCOMPLETE = (
+    7  # work was still running when the Core had to stop: the stores were left as they were and the process ends (which releases the folder lock)
+)
 EXIT_NEEDS_SIGNIN = 6  # the Keychain would not give the store keys: the Mac has not been signed in to since it restarted
 
 
@@ -132,8 +135,7 @@ def main(argv: list[str] | None = None) -> int:
     stop.wait()
     if relay is not None:
         relay.close()
-    core.close()
-    return 0
+    return 0 if core.close() else EXIT_SHUTDOWN_INCOMPLETE
 
 
 if __name__ == "__main__":

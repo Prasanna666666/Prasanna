@@ -621,6 +621,7 @@ struct GetStartedView: View {
         }
         .padding(Space.xxl)
         .frame(maxWidth: Metrics.readingWidth)
+        .background(theme.background)  // the audit measures the text against the token background, not whatever window material sits behind it
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Welcome to Atlas. Choose what Atlas may read.")  // the audit found this container without a description
     }

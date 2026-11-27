@@ -361,18 +361,25 @@ class Core:
         if fd >= 0:
             os.close(fd)
 
-    def close(self) -> None:
+    def close(self, drain_seconds: float = CLOSE_DRAIN_SECONDS) -> bool:
+        """Stop and release. Active work is stopped first and waited for, within `drain_seconds`. Returns True when everything has finished and the stores and the data-directory lock were released.
+        Returns False, with the stores still open and the lock still held, when a request or worker could still be using them: closing them under live work is worse than staying owned, so the caller
+        ends the whole process (which releases both) instead of continuing."""
         self._stop.set()
         self.api.begin_shutdown()  # open streams end at their next step
+        stalled = False
         if self.server is not None:
             self.server.shutdown()  # no new request is accepted
             self.server.server_close()
-            if not self.server.drain(
-                CLOSE_DRAIN_SECONDS
-            ):  # requests still running past the deadline: said in the log, then closed anyway (a hung handler may not keep the Core open forever)
-                self.config.log.emit("api.request", "service", "shutdown", error_code="internal_error")
+            stalled = not self.server.drain(drain_seconds)
         for thread in self._threads:
-            thread.join(5)  # the worker and the connector check finish before any store they use is closed
+            thread.join(min(5.0, max(drain_seconds, 0.0)))  # the worker and the connector check finish before any store they use is closed
+            stalled = stalled or thread.is_alive()
+        if stalled:
+            self.config.log.emit(
+                "api.request", "service", "shutdown", error_code="internal_error"
+            )  # incomplete shutdown: reported, nothing closed under live work
+            return False
         for index in self.indexes.values():
             index.close()
         for closer in self.config.closers:
@@ -382,3 +389,4 @@ class Core:
             self.edits.close()
         self.designation.close()
         self._release_lock()
+        return True

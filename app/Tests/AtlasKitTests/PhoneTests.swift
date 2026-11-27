@@ -192,7 +192,7 @@ final class ScriptedTransport: HTTPTransport {
     var answers: [String: (Int, String)] = [:]
     func send(method: String, target: String, headers: [String: String], body: Data) throws -> UnixHTTP.Response {
         let (status, text) = answers[target] ?? (404, #"{"code":"not_found","message":"x","retryable":false}"#)
-        return UnixHTTP.Response(status: status, headers: [:], body: Data(text.utf8))
+        return UnixHTTP.Response(status: status, headers: ["x-atlas-api-version": "1.1"], body: Data(text.utf8))  // a 1.1 Core echoes the version on every response, errors included; the client refuses a response without it
     }
 }
 

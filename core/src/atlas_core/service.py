@@ -514,12 +514,29 @@ class TaskService:
 
     def library_search(self, query: str, scope: list[str]) -> dict[str, Any]:
         """Library (API 1.1): search what the owner enabled, through the same policy decision and the same gated retrieval a question uses, so nothing outside a current grant is read. Results are one entry per
-        source with its best passage; the coverage of each source says how much has been read so far, so an incomplete index is never presented as a complete search."""
+        source with its best passage; the coverage of each source says how much has been read so far, so an incomplete index is never presented as a complete search. Access is checked once more after the last
+        read and before anything is returned, against the exact grants the operation was authorised under."""
         d = self._d
         decision, token = d.policy.decide(scope, d.clock())
+        if token is None:
+            return {"state": "denied", "results": [], "coverage": []}
+        found = self._retrieval.fetch(token, d.retriever, query, d.clock(), d.policy, d.clock).passages
+        coverage = self._library_coverage(scope, decision)
+        results = self._library_results(found)
+        still_permitted, _withdrawn = d.policy.revalidate(token, d.clock())  # the final check: after the last material read, before delivery
+        results = [r for r in results if r["source_type"] in still_permitted]
+        for entry in coverage:
+            if entry["source_type"] not in still_permitted:
+                entry.update(total=0, searched=0, complete=False)
+        incomplete = any(not c["complete"] for c in coverage)
+        state = ("partial" if results else "partial_no_results") if incomplete else ("results" if results else "no_results")
+        return {"state": state, "results": results, "coverage": coverage}
+
+    def _library_coverage(self, scope: list[str], decision: dict[str, Any]) -> list[dict[str, Any]]:
+        """One entry per requested source. A source that was not searched (no current grant, or no provider) is listed as unsearched with its counts withheld, so a no-match never reads as covering it."""
         coverage = []
         for source_type in sorted(set(scope)):
-            provider = d.coverage.get(source_type)
+            provider = self._d.coverage.get(source_type)
             if provider is not None and source_type in decision["permitted_source_types"]:
                 c = provider()
                 coverage.append(
@@ -530,19 +547,11 @@ class TaskService:
                         "complete": bool(c.get("complete", False)),
                     }
                 )
-            elif token is not None:
-                # requested but not searched (no current grant, or no provider): said plainly as an unsearched source so a no-match is never read as covering it; its counts stay withheld
+            else:
                 coverage.append({"source_type": source_type, "total": 0, "searched": 0, "complete": False})
-        if token is None:
-            return {"state": "denied", "results": [], "coverage": []}
-        found = self._retrieval.fetch(token, d.retriever, query, d.clock(), d.policy, d.clock).passages
-        still_permitted, _withdrawn = d.policy.revalidate(
-            token, d.clock()
-        )  # access is checked again at delivery: a grant withdrawn during the read removes that source's results
-        found = [p for p in found if p["evidence"]["source_type"] in still_permitted]
-        for entry in coverage:
-            if entry["source_type"] not in still_permitted:
-                entry.update(total=0, searched=0, complete=False)
+        return coverage
+
+    def _library_results(self, found: list[dict[str, Any]]) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
         seen: set[str] = set()
         for passage in found:
@@ -550,7 +559,7 @@ class TaskService:
             if evidence["source_id"] in seen:
                 continue
             seen.add(evidence["source_id"])
-            source = d.sources.get(evidence["source_id"])
+            source = self._d.sources.get(evidence["source_id"])
             if source is None:
                 continue
             results.append(
@@ -564,9 +573,7 @@ class TaskService:
             )
             if len(results) == LIBRARY_LIMIT:
                 break
-        incomplete = any(not c["complete"] for c in coverage)
-        state = ("partial" if results else "partial_no_results") if incomplete else ("results" if results else "no_results")
-        return {"state": state, "results": results, "coverage": coverage}
+        return results
 
     def finance_summary(self) -> dict[str, Any]:
         """Spending by month and category (API 1.1), computed by code from the owner's Finance records and served only under a current grant for exactly that domain. Every figure is an exact sum of the

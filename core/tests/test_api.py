@@ -289,3 +289,47 @@ def test_open_streams_end_when_the_core_begins_to_close(h):
     assert h.stream(created["task_id"])  # while running, the stream delivers events
     h.api.begin_shutdown()
     assert h.stream(created["task_id"]) == []
+
+
+@pytest.mark.criterion(10)
+def test_a_grant_withdrawn_at_the_last_read_before_delivery_still_removes_the_result(tmp_path):
+    """The final access check runs after the last material read (the source lookup that builds each result), not only after retrieval."""
+    world = World(tmp_path, [grant("documents")])
+    world.service._d.coverage["documents"] = lambda: {"total": 3, "searched": 3, "complete": True}
+    h = Harness(world)
+    assert _library(h, ["documents"])[1]["results"]
+    real_get = world.sources.get
+
+    def withdraw_when_the_source_is_read(source_id):
+        world.grants._grants.clear()
+        return real_get(source_id)
+
+    world.sources.get = withdraw_when_the_source_is_read
+    status, body = _library(h, ["documents"])
+    assert status == 200 and body["results"] == [] and body["state"] == "partial_no_results"
+    assert body["coverage"] == [{"source_type": "documents", "total": 0, "searched": 0, "complete": False}]
+
+
+@pytest.mark.criterion(14)
+def test_a_stream_already_suspended_in_delivery_ends_when_the_core_begins_to_close(tmp_path):
+    """An iterator that is already open and waiting for more events (not a new one) stops at its next step once shutdown begins."""
+    import threading
+    import time as time_module
+
+    world = World(tmp_path, [grant("documents")])
+    h = Harness(world)
+    service = world.service
+    service.get = lambda task_id: {"state": "running"}  # type: ignore[method-assign]
+    service.events_after = lambda task_id, after, version="1.0": []  # type: ignore[method-assign]
+    finished = threading.Event()
+
+    def follow():
+        for _ in h.api._follow("task-x", 0, "1.0"):
+            pass
+        finished.set()
+
+    threading.Thread(target=follow, daemon=True).start()
+    time_module.sleep(0.2)
+    assert not finished.is_set(), "the stream is open and waiting"
+    h.api.begin_shutdown()
+    assert finished.wait(2)

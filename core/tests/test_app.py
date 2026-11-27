@@ -216,3 +216,55 @@ def test_only_one_core_may_hold_a_data_folder_and_it_is_released_on_close(tmp_pa
         w.build()  # the same folder, while the first is alive
     first.close()
     w.build().close()  # released: a new Core may take it
+
+
+def test_close_keeps_the_stores_and_the_lock_while_a_request_could_still_be_using_them(world):
+    """A stalled handler: close() times out, reports it, closes nothing and releases nothing; once the handler is gone a later close completes."""
+    import socket as socket_module
+
+    core = world.build()
+    core.start()
+    sock = socket_module.socket(socket_module.AF_UNIX, socket_module.SOCK_STREAM)
+    sock.connect(str(world.sock))
+    sock.sendall(b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n")  # the handler is now waiting for the rest of the request
+    time.sleep(0.2)
+    assert core.close(drain_seconds=0.3) is False
+    assert core._lock_fd >= 0, "the data-directory lock is still held"
+    sock.close()
+    assert core.close(drain_seconds=5.0) is True
+    assert core._lock_fd < 0
+
+
+def test_work_admitted_but_not_yet_running_is_counted_by_the_drain(tmp_path):
+    """The count is taken before the handler thread starts: a drain that begins in that window waits instead of seeing nothing."""
+    import socketserver
+    import threading
+
+    from atlas_core.transport import UnixServer
+
+    entered, release = threading.Event(), threading.Event()
+    real = socketserver.ThreadingMixIn.process_request
+
+    def slow_spawn(self, request, client_address):
+        entered.set()
+        release.wait(3)
+        real(self, request, client_address)
+
+    folder = Path(tempfile.mkdtemp(prefix="atl"))
+    server = UnixServer(str(folder / "s.sock"), __import__("http.server").server.BaseHTTPRequestHandler)
+    try:
+        socketserver.ThreadingMixIn.process_request = slow_spawn  # type: ignore[method-assign]
+        a, b = __import__("socket").socketpair()
+        t = threading.Thread(target=server.process_request, args=(a, ("", 0)), daemon=True)
+        t.start()
+        assert entered.wait(2)
+        assert server.drain(0.2) is False  # admitted, thread not started yet: still counted
+        release.set()
+        t.join(3)
+        b.close()  # the client goes away, so the started handler ends
+        assert server.drain(5.0) is True
+    finally:
+        socketserver.ThreadingMixIn.process_request = real  # type: ignore[method-assign]
+        server.server_close()
+        a.close()
+        b.close()

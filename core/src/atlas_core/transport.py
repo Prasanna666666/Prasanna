@@ -154,22 +154,27 @@ class UnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
         if not self._slots.acquire(blocking=False):  # every slot busy: refuse by closing, without reading or replying (bounds threads and memory)
             self.shutdown_request(request)
             return
+        with self._idle:
+            self._busy += (
+                1  # admitted work is counted BEFORE its thread starts, so a drain can never see an empty count while an accepted handler is still being spawned
+            )
         try:
             super().process_request(request, client_address)
         except BaseException:
-            self._slots.release()
+            self._finished()
             raise
 
     def process_request_thread(self, request: Connection, client_address: object) -> None:
-        with self._idle:
-            self._busy += 1
         try:
             super().process_request_thread(request, client_address)
         finally:
-            self._slots.release()
-            with self._idle:
-                self._busy -= 1
-                self._idle.notify_all()
+            self._finished()
+
+    def _finished(self) -> None:
+        self._slots.release()
+        with self._idle:
+            self._busy -= 1
+            self._idle.notify_all()
 
     def drain(self, timeout: float) -> bool:
         """Wait until every request being served has finished (call after `shutdown()`, which stops new ones). True if none is left; False if the deadline passed with work still running."""
