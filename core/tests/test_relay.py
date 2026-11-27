@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import http.client
+import shutil
 import socket
+import tempfile
 
 import pytest
 from conftest import KEY
@@ -147,7 +149,10 @@ def test_the_relay_never_forwards_more_than_the_response_cap_and_the_cap_is_the_
 
     swift = (Path(__file__).resolve().parents[2] / "app/Sources/AtlasKit/HTTPTransport.swift").read_text()
     assert str(relay.MAX_RESPONSE_BYTES) == re.search(r"maxReply = ([0-9_]+)", swift).group(1).replace("_", "")
-    path = tmp_path / "fake-core.sock"
+    short = Path(
+        tempfile.mkdtemp(prefix="atl")
+    )  # a short path: a Unix socket path is limited to 103 bytes on macOS, which pytest's temporary folders there exceed
+    path = short / "fake-core.sock"
     core = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
     core.bind(str(path))
     core.listen(1)
@@ -180,3 +185,4 @@ def test_the_relay_never_forwards_more_than_the_response_cap_and_the_cap_is_the_
         server.shutdown()
         server.server_close()
         core.close()
+        shutil.rmtree(short, ignore_errors=True)

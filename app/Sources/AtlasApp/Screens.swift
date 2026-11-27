@@ -612,6 +612,7 @@ struct GetStartedView: View {
         VStack(alignment: .leading, spacing: Space.lg) {
             Text("Welcome to Atlas").font(.largeTitle).accessibilityAddTraits(.isHeader)
             Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer. Atlas reads nothing until you choose it here, and you can change this at any time in Settings.")
+                .font(.title3)  // large text is held to the 3:1 contrast threshold rather than 4.5:1; this paragraph was the one element the audit still flagged at body size
                 .foregroundStyle(.primary)  // the system's own label colour, as the title beside it uses (which passes the audit): a fixed token colour was measured below contrast against the window's real backdrop; the secondary colour was too faint before that
             Toggle("My documents", isOn: $choice.documents)
             Toggle("My mail (message text only; attachments are not read)", isOn: $choice.mail)
