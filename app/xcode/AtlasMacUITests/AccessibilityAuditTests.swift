@@ -1,9 +1,33 @@
+import AppKit
 import XCTest
 
 /// The system's accessibility audit over the Mac app's first screen, with a screenshot kept in the test result. The app starts its real Core from the Python named by `ATLAS_CI_PYTHON` (a development override;
 /// the packaged app uses the Python inside it), so what is audited is the screen a new owner actually sees.
 final class AccessibilityAuditTests: XCTestCase {
     override func setUpWithError() throws { continueAfterFailure = false }
+
+    /// What the flagged element actually rendered: the lightest and darkest pixels in its own screenshot, and their WCAG contrast ratio. The
+    /// log carries it, so a contrast finding can be diagnosed from evidence rather than from the source colours.
+    static func measuredContrast(_ image: NSImage) -> String {
+        guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil), let data = cg.dataProvider?.data, let bytes = CFDataGetBytePtr(data) else { return "no pixels" }
+        let bpp = cg.bitsPerPixel / 8, row = cg.bytesPerRow
+        func lum(_ c: Double) -> Double { let v = c / 255; return v <= 0.03928 ? v / 12.92 : pow((v + 0.055) / 1.055, 2.4) }
+        var lo = (l: 2.0, rgb: "?"), hi = (l: -1.0, rgb: "?"), counts: [String: Int] = [:]
+        for y in stride(from: 0, to: cg.height, by: 2) {
+            for x in stride(from: 0, to: cg.width, by: 2) {
+                let o = y * row + x * bpp
+                let (r, g, b) = (Double(bytes[o + 2]), Double(bytes[o + 1]), Double(bytes[o]))  // BGRA assumed (the macOS screenshot layout); a swapped order shifts luminance slightly but not the ratio's order of magnitude
+                let l = 0.2126 * lum(r) + 0.7152 * lum(g) + 0.0722 * lum(b)
+                let hex = String(format: "#%02X%02X%02X", Int(r), Int(g), Int(b))
+                counts[hex, default: 0] += 1
+                if l < lo.l { lo = (l, hex) }
+                if l > hi.l { hi = (l, hex) }
+            }
+        }
+        let ratio = (hi.l + 0.05) / (lo.l + 0.05)
+        let common = counts.sorted { $0.value > $1.value }.prefix(4).map { "\($0.key)×\($0.value)" }.joined(separator: " ")
+        return String(format: "darkest %@, lightest %@, ratio %.2f:1; most common %@ (size %dx%d, %d bpp)", lo.rgb, hi.rgb, ratio, common, cg.width, cg.height, cg.bitsPerPixel)
+    }
 
     private func keep(_ app: XCUIApplication, _ name: String) {
         let shot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
@@ -46,6 +70,7 @@ final class AccessibilityAuditTests: XCTestCase {
             atFinding.name = "at-audit-\(appearance)-\(issue.auditType.rawValue)"
             atFinding.lifetime = .keepAlways
             self.add(atFinding)
+            if issue.auditType == .contrast, let e = issue.element { print("CONTRAST PIXELS [\(appearance)]: \(Self.measuredContrast(e.screenshot().image))") }
             // Set aside only the window's own structural root: an unlabelled group that fills the whole window and holds the content. SwiftUI gives an app no way to label it; every other element still must pass.
             let window = app.windows.firstMatch.frame
             if let e = issue.element { print("EXEMPTION CHECK: type=\(issue.auditType == .sufficientElementDescription) group=\(e.elementType == .group) emptyLabel=\(e.label.isEmpty) width=\(e.frame.width) window=\(window.width)") }
