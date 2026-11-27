@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import time
+
 import pytest
 from test_app import World
 from test_client import atlas_client
@@ -43,6 +45,8 @@ def test_a_search_with_no_matches_says_so_and_an_incomplete_index_is_never_prese
     world.enable(core, "documents")
     world.wait_indexed(core)
     assert world.client().library_search("zzzunmatchedwordzzz", ["documents"])["state"] == "no_results"
+    core.tick = lambda: None  # type: ignore[method-assign]  # the worker's next round would clear the pause (run() resumes growth): stop its rounds so the pause is still there when searched
+    time.sleep(0.3)  # a round already in flight finishes first
     core.indexes["documents"].pause_growth("disk_pressure")  # an index that has not finished
     core.indexes["documents"]._set_pause("disk_pressure")
     partial = world.client().library_search("zzzunmatchedwordzzz", ["documents"])
