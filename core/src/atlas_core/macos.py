@@ -87,17 +87,24 @@ class KeychainItems:
         if done.returncode not in (0, NOT_FOUND):
             raise KeychainError("delete")
 
+    def add_if_absent(self, service: str, value: str) -> None:
+        """Add the item only if none exists: no `-U`, so an item already there (a competing start, an earlier run) is never replaced. A refusal because the item exists is expected and not an
+        error here: the caller reads back what is really stored. (`security -i` does not reliably report a refused add in its exit status, so the read-back is the check, never the status.)"""
+        command = f"add-generic-password -a {shlex.quote(self._account)} -s {shlex.quote(service)} -w {_encode(value)}\n"
+        self._run([SECURITY_TOOL, "-i"], input=command, capture_output=True, text=True, check=False)
+
     def secret(self, name: str) -> str:
-        """A 256-bit key of its own for each store (never shared), created on first use."""
+        """A 256-bit key of its own for each store (never shared), created on first use. First provisioning only ever adds: an existing key is never overwritten, so two starts that race, or a start
+        after an interrupted restore, cannot orphan the data a key already protects. Whatever is stored after the add is what is used."""
         service = f"atlas-{name}"
         found = self.read(service)
         if found:
             return found
-        fresh = secrets.token_hex(32)
-        self.write(service, fresh)
-        if self.read(service) != fresh:  # another process may have created it first: use what is really stored
+        self.add_if_absent(service, secrets.token_hex(32))
+        stored = self.read(service)  # ours, or the one a competing start added first
+        if not stored:
             raise KeychainError("verify")
-        return fresh
+        return stored
 
 
 class KeychainSecrets:

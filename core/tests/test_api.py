@@ -280,3 +280,12 @@ def test_a_grant_withdrawn_while_a_library_read_is_under_way_removes_that_source
     status, body = _library(h, ["documents"])
     assert status == 200 and body["results"] == [] and body["state"] == "partial_no_results"
     assert body["coverage"] == [{"source_type": "documents", "total": 0, "searched": 0, "complete": False}]
+
+
+@pytest.mark.criterion(14)
+def test_open_streams_end_when_the_core_begins_to_close(h):
+    """No handler may be following a task into a store that is about to close: after begin_shutdown a stream yields nothing further and returns."""
+    _, created = h.json("POST", "/v1/tasks", request())
+    assert h.stream(created["task_id"])  # while running, the stream delivers events
+    h.api.begin_shutdown()
+    assert h.stream(created["task_id"]) == []

@@ -52,6 +52,7 @@ from .updater import UpdateOperations
 from .web import EngineFactory, WebReader
 
 INDEX_SLICE = 20
+CLOSE_DRAIN_SECONDS = 10.0  # how long close() waits for requests in flight before it closes the stores
 RESCAN_SECONDS = 300  # how often a permitted source is listed again to notice changes
 
 
@@ -301,9 +302,11 @@ class Core:
         self.service.recover()
         self.server = serve_unix(self.config.socket_path, self.api, self.config.allowed_uids)
         if self.connectors is not None:
-            threading.Thread(
+            checker = threading.Thread(
                 target=self.connectors.verify_all, daemon=True
-            ).start()  # connected services are checked in the background; none may act before it answers ok
+            )  # connected services are checked in the background; none may act before it answers ok
+            checker.start()
+            self._threads.append(checker)
         for target in (self.server.serve_forever, self._work):
             thread = threading.Thread(target=target, daemon=True)
             thread.start()
@@ -360,11 +363,16 @@ class Core:
 
     def close(self) -> None:
         self._stop.set()
+        self.api.begin_shutdown()  # open streams end at their next step
         if self.server is not None:
-            self.server.shutdown()
+            self.server.shutdown()  # no new request is accepted
             self.server.server_close()
+            if not self.server.drain(
+                CLOSE_DRAIN_SECONDS
+            ):  # requests still running past the deadline: said in the log, then closed anyway (a hung handler may not keep the Core open forever)
+                self.config.log.emit("api.request", "service", "shutdown", error_code="internal_error")
         for thread in self._threads:
-            thread.join(5)
+            thread.join(5)  # the worker and the connector check finish before any store they use is closed
         for index in self.indexes.values():
             index.close()
         for closer in self.config.closers:

@@ -9,6 +9,7 @@ from __future__ import annotations
 import base64
 import json
 import re
+import threading
 import time
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
@@ -126,6 +127,7 @@ class CoreApi:
             devices,
         )
         self._clock = clock or (lambda: datetime.now(UTC))
+        self._closing = threading.Event()
         self._check = check_responses  # tests: every JSON response must match its contract type
 
     def handle(self, request: Request) -> Response:
@@ -564,9 +566,13 @@ class CoreApi:
         self._log.emit("stream.opened", "stream", correlation, count=after)
         return Response(200, {"content-type": SSE, "cache-control": "no-store"}, stream=self._follow(task_id, after, version))
 
+    def begin_shutdown(self) -> None:
+        """The Core is closing: every open stream ends at its next step (the client resumes with ?after=) so that no handler is reading a store that is about to close."""
+        self._closing.set()
+
     def _follow(self, task_id: str, after: int, version: str) -> Iterator[bytes]:
         deadline = time.monotonic() + FOLLOW_SECONDS
-        while True:
+        while not self._closing.is_set():
             for event in self._service.events_after(task_id, after, version):
                 after = event["seq"]
                 yield f"id: {after}\ndata: {json.dumps(event)}\n\n".encode()

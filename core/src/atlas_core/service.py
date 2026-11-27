@@ -536,7 +536,9 @@ class TaskService:
         if token is None:
             return {"state": "denied", "results": [], "coverage": []}
         found = self._retrieval.fetch(token, d.retriever, query, d.clock(), d.policy, d.clock).passages
-        still_permitted, _withdrawn = d.policy.revalidate(token, d.clock())  # access is checked again at delivery: a grant withdrawn during the read removes that source's results
+        still_permitted, _withdrawn = d.policy.revalidate(
+            token, d.clock()
+        )  # access is checked again at delivery: a grant withdrawn during the read removes that source's results
         found = [p for p in found if p["evidence"]["source_type"] in still_permitted]
         for entry in coverage:
             if entry["source_type"] not in still_permitted:

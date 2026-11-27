@@ -12,6 +12,7 @@ import socketserver
 import struct
 import sys
 import threading
+import time
 from collections.abc import Iterable
 from email.message import Message
 from http.server import BaseHTTPRequestHandler
@@ -145,6 +146,8 @@ class UnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
 
     def __init__(self, path: str, handler: type[BaseHTTPRequestHandler], max_connections: int = MAX_CONNECTIONS) -> None:
         self._slots = threading.BoundedSemaphore(max_connections)
+        self._busy = 0
+        self._idle = threading.Condition()
         super().__init__(path, handler)
 
     def process_request(self, request: Connection, client_address: object) -> None:
@@ -158,10 +161,26 @@ class UnixServer(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
             raise
 
     def process_request_thread(self, request: Connection, client_address: object) -> None:
+        with self._idle:
+            self._busy += 1
         try:
             super().process_request_thread(request, client_address)
         finally:
             self._slots.release()
+            with self._idle:
+                self._busy -= 1
+                self._idle.notify_all()
+
+    def drain(self, timeout: float) -> bool:
+        """Wait until every request being served has finished (call after `shutdown()`, which stops new ones). True if none is left; False if the deadline passed with work still running."""
+        deadline = time.monotonic() + timeout
+        with self._idle:
+            while self._busy:
+                left = deadline - time.monotonic()
+                if left <= 0:
+                    return False
+                self._idle.wait(left)
+        return True
 
 
 def _answers(path: Path) -> bool:

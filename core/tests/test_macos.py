@@ -50,7 +50,9 @@ class FakeSecurity:
         elif argv[1] == "-i":
             parts = shlex.split(input)
             assert parts[0] == "add-generic-password"
-            self.items[(parts[parts.index("-a") + 1], parts[parts.index("-s") + 1])] = parts[parts.index("-w") + 1]
+            key = (parts[parts.index("-a") + 1], parts[parts.index("-s") + 1])
+            if "-U" in parts or key not in self.items:  # without -U an existing item is refused, as the real tool does
+                self.items[key] = parts[parts.index("-w") + 1]
         return done
 
 
@@ -64,12 +66,39 @@ def test_each_store_gets_its_own_random_key_created_once_and_never_on_a_command_
     assert not any(v in " ".join(argv) for argv in sec.argvs for v in first.values())  # the value only travels on standard input
 
 
+def test_first_provisioning_never_overwrites_a_key_a_competing_start_added_in_between():
+    """Two starts race: both find no key, one adds, the other's add must not replace it. Both end up with the same stored key, and the data it protects is not orphaned."""
+    sec = FakeSecurity()
+    items = KeychainItems("owner", sec)
+    real_read = items.read
+    reads = []
+
+    def read_then_lose_the_race(service):
+        value = real_read(service)
+        if not reads:  # our lookup found nothing; before our add, the competitor provisions its key
+            sec.items[("owner", service)] = "c" * 64
+        reads.append(service)
+        return value
+
+    items.read = read_then_lose_the_race
+    assert items.secret("task-store") == "c" * 64
+    assert sec.items[("owner", "atlas-task-store")] == "c" * 64  # not overwritten
+    assert not any("-U" in " ".join(argv) for argv in sec.argvs)
+
+
+def test_an_existing_key_is_returned_unchanged_and_no_write_is_issued():
+    sec = FakeSecurity()
+    sec.items[("owner", "atlas-task-store")] = "e" * 64
+    assert KeychainItems("owner", sec).secret("task-store") == "e" * 64
+    assert not [a for a in sec.argvs if a[1] == "-i"]
+
+
 def test_a_failing_keychain_is_a_content_free_error():
     sec = FakeSecurity()
     sec.fail = True
     with pytest.raises(KeychainError) as e:
         KeychainItems("owner", sec).secret("task-store")
-    assert str(e.value) in ("read", "write")
+    assert str(e.value) in ("read", "write", "verify")
 
 
 def test_the_keychain_anchor_follows_the_two_phase_rules_and_survives_a_restart():

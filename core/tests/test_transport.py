@@ -54,6 +54,7 @@ def served(tmp_path):
         threading.Thread(target=server.serve_forever, daemon=True).start()
         return str(folder / "run" / "core.sock")
 
+    start.servers = started
     yield start, key, world, folder
     for server in started:
         server.shutdown()
@@ -237,3 +238,18 @@ def test_a_live_sockets_path_is_never_unlinked_but_a_stale_one_is_replaced(tmp_p
     path.unlink()
     path.write_text("leftover")
     serve_unix(path, object()).server_close()  # type: ignore[arg-type]
+
+
+def test_close_waits_for_a_request_in_flight_and_reports_one_that_outlasts_the_deadline(served):
+    """Stores may only close once nothing is reading them: drain() is False while a handler is still running and True once it has finished."""
+    start, _key, _world, _ = served
+    path = start(max_connections=2, read_timeout=5.0)
+    started_servers = start.servers
+    sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    sock.connect(path)
+    sock.sendall(b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n")  # a request the server is still reading: its handler is busy
+    time.sleep(0.2)
+    server = started_servers[0]
+    assert server.drain(0.2) is False
+    sock.close()
+    assert server.drain(3.0) is True
