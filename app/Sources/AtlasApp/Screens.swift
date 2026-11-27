@@ -612,7 +612,7 @@ struct GetStartedView: View {
         VStack(alignment: .leading, spacing: Space.lg) {
             Text("Welcome to Atlas").font(.largeTitle).accessibilityAddTraits(.isHeader)
             Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer. Atlas reads nothing until you choose it here, and you can change this at any time in Settings.")
-                .foregroundStyle(theme.textPrimary)  // the audit measured the secondary colour as too faint here
+                .foregroundStyle(.primary)  // the system's own label colour, as the title beside it uses (which passes the audit): a fixed token colour was measured below contrast against the window's real backdrop; the secondary colour was too faint before that
             Toggle("My documents", isOn: $choice.documents)
             Toggle("My mail (message text only; attachments are not read)", isOn: $choice.mail)
             if let failure = model.failure { StateNotice(text: failure, style: .problem) }
@@ -621,7 +621,6 @@ struct GetStartedView: View {
         }
         .padding(Space.xxl)
         .frame(maxWidth: Metrics.readingWidth)
-        .background(theme.background)  // the audit measures the text against the token background, not whatever window material sits behind it
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Welcome to Atlas. Choose what Atlas may read.")  // the audit found this container without a description
     }

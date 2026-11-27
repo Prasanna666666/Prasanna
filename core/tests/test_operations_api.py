@@ -188,6 +188,15 @@ def test_a_device_pairs_over_the_socket_checks_the_core_syncs_and_is_revoked_for
     with pytest.raises(atlas_client.ClientError) as revoked:
         newcomer.sync([{"op_id": "op-0000002", "name": "notes.create", "payload": {**NOTE, "id": "n2"}}])
     assert revoked.value.code == "forbidden" and owner.devices()[0]["revoked_at"] is not None
+    with pytest.raises(atlas_client.ClientError) as read_after:
+        newcomer.records("notes")  # a revoked device's READ is refused too, not only its writes (what the phone does on its next contact)
+    assert read_after.value.code == "forbidden"
+    with pytest.raises(atlas_client.ClientError) as probe_after:
+        newcomer._json(
+            "GET", "/v1/index/status"
+        )  # the empty signed request the phone uses to confirm a revocation (a 1.1 route: /v1/version is verified as 1.0)
+    assert probe_after.value.code == "forbidden"
+    assert [d["device_id"] for d in owner.devices()] == ["new-phone-0001"] and owner._json("GET", "/v1/index/status") is not None  # the owner is unaffected
     with pytest.raises(atlas_client.ClientError) as last:
         owner.revoke_device("client-mac-0001")
     assert last.value.code in ("forbidden", "invalid_request")  # the last owner client cannot be revoked
