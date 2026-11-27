@@ -340,7 +340,12 @@ def test_a_stop_with_a_request_still_running_exits_with_status_7_and_the_next_st
     first = start()
     held = socket_module.socket(socket_module.AF_UNIX, socket_module.SOCK_STREAM)
     held.connect(str(sock))
-    held.sendall(b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n")  # a request the Core is still reading when told to stop
+    held.settimeout(10)
+    held.sendall(b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n\r\n")  # a complete request on a keep-alive connection ...
+    reply = b""
+    while b"\r\n\r\n" not in reply:
+        reply += held.recv(4096)  # ... answered: so a handler thread has certainly accepted this connection and is serving it
+    held.sendall(b"GET /v1/version HTTP/1.1\r\nHost: localhost\r\n")  # then a second request it is still reading when told to stop
     first.process.send_signal(signal.SIGTERM)
     assert first.process.wait(60) == serve.EXIT_SHUTDOWN_INCOMPLETE
     held.close()
