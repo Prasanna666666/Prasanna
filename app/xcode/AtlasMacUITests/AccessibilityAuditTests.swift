@@ -48,6 +48,7 @@ final class AccessibilityAuditTests: XCTestCase {
             let stateFile = NSTemporaryDirectory() + "atlas-probe-state-\(appearance).txt"
             try? FileManager.default.removeItem(atPath: stateFile)
             app.launchEnvironment["ATLAS_UI_TEST_STATE_FILE"] = stateFile
+            app.launchEnvironment["ATLAS_UI_TEST_KEY_WINDOW"] = "1"  // the same controlled window state as the gated audit
             app.launch()
             app.activate()
             let paragraph = app.staticTexts["Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer."]
@@ -65,6 +66,12 @@ final class AccessibilityAuditTests: XCTestCase {
             states(app, paragraph, "PROBE AFTER AUDIT [\(appearance)]", stateFile)
             app.terminate()
         }
+    }
+
+    /// The app's latest recorded state line (appearance, active, key, main, occlusion), or why there is none.
+    static func lastState(_ stateFile: String) -> String {
+        guard let text = try? String(contentsOfFile: stateFile, encoding: .utf8) else { return "no state recorded" }
+        return text.split(separator: "\n").last.map(String.init) ?? "empty"
     }
 
     /// What XCUITest and the app itself report about activation and enablement, for the window, the root group and one element.
@@ -110,7 +117,9 @@ final class AccessibilityAuditTests: XCTestCase {
         states(app, paragraph, "AUDIT STATE [\(appearance)]", stateFile)
         let recorded = (try? String(contentsOfFile: stateFile, encoding: .utf8)) ?? ""
         print("AUDIT WINDOW KEY [\(appearance)]: \(recorded.split(separator: "\n").last.map { $0.contains("key=true") } ?? false)")  // recorded, not asserted: the gate stays the audit
+        print("AUDIT STARTS [\(appearance)]: \(Self.lastState(stateFile))")  // the app's own state immediately before the audit
         try app.performAccessibilityAudit { issue in
+            print("AT FINDING [\(appearance)] APP: \(Self.lastState(stateFile)) | XCUI window.enabled=\(app.windows.firstMatch.isEnabled)")
             let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' \($0.identifier)" } ?? "no element"
             let line = "AUDIT ISSUE [\(appearance)]: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element) | \(issue.element?.debugDescription ?? "")"
             print(line)  // shows in the CI log, so a finding names the element it is about

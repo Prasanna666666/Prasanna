@@ -84,12 +84,12 @@ def _import_finance(paths: list[Path], legacy_key: str, open_sink: SinkOpener) -
     ), f"import-finance: {'ok' if result.ok else 'refused ' + ','.join(result.problems)} {result.migrated} records\n"
 
 
-def provision_staged(items: KeyItems, bundle: Mapping[str, str], data_dir: Path) -> None:
+def provision_staged(items: KeyItems, bundle: Mapping[str, str], data_dir: Path, lock: Path | None = None) -> None:
     """Put recovered keys into the Keychain for the installation in `data_dir`, recoverably (see keyrestore): one serialized, account-wide
     transaction, staged into inactive items first and committed past a durable Keychain journal, refused while another data folder owns the
     live keys, so no failure, failing clean-up, interrupted process or second installation is left with some keys replaced."""
     names = {**{f"db:{db}": item for db, item in KEY_ITEMS.items()}, **BUNDLE_ITEMS}
-    keyrestore.provision(items, {f"atlas-{item}": bundle[key] for key, item in names.items() if key in bundle}, data_dir)
+    keyrestore.provision(items, {f"atlas-{item}": bundle[key] for key, item in names.items() if key in bundle}, data_dir, lock)
 
 
 def run(argv: list[str], *, stdin: TextIO, out: TextIO, read_key: KeyReader, write_keys: KeyWriter, open_sink: SinkOpener | None = None) -> int:

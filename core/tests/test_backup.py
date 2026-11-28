@@ -467,7 +467,7 @@ def test_a_restore_into_a_second_folder_never_orphans_the_working_installation(w
     working, target = world.tmp / "core", tmp_path / "restored"
     world.close()
     items = _Items({"atlas-task-store": DB_KEYS["tasks.db"], "atlas-designation-store": DB_KEYS["designation.db"]})
-    keyrestore.claim(items, working)  # the working installation's start records that it owns the live keys
+    keyrestore.verify_owner(items, working)  # the working installation's start records that it owns the live keys
 
     with pytest.raises(keyrestore.KeyRestoreError, match="another_installation"):
         restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
@@ -484,6 +484,36 @@ def test_a_restore_into_a_second_folder_never_orphans_the_working_installation(w
     assert keyrestore.recover(items) == "completed"  # a start of any folder finishes it
     assert items.live()["atlas-installation"] == str(target.resolve()) and "atlas-restore-journal" not in items.store
     assert _reopen(target, items.store["atlas-task-store"], task_id) == "completed"
+
+
+def test_a_commit_point_whose_write_succeeded_but_could_not_be_confirmed_keeps_the_restored_files(world, tmp_path):
+    """MAC-17: the write of the `committing` journal reaches the Keychain but its read-back fails. The commit point may have persisted, so the
+    restore re-reads the journal under the lock, keeps the restored folder (never removes files the keys are about to protect), and the next
+    start completes the keys and reopens the restored installation."""
+    from test_maintenance import GONE, _Items
+
+    from atlas_core import keyrestore
+    from atlas_core.maintenance import provision_staged
+
+    class UnconfirmedCommit(_Items):
+        garbled = False
+
+        def read(self, service):
+            value = super().read(service)
+            if service == "atlas-restore-journal" and value and '"committing"' in value and not self.garbled:
+                self.garbled = True  # the one read-back right after the commit-point write
+                return "unreadable"
+            return value
+
+    task_id, _answer = a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    items, target = UnconfirmedCommit({"atlas-task-store": "the-old-task-key", "atlas-installation": GONE}), tmp_path / "restored"
+    with pytest.raises(keyrestore.KeyCommitIncomplete, match="commit_unconfirmed"):
+        restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
+    assert (target / "tasks.db").exists() and items.store["atlas-task-store"] == "the-old-task-key"
+    keys = keyrestore.open_keys(items, target, None, lambda: items.store["atlas-task-store"])  # the next start, under the lock
+    assert keys == DB_KEYS["tasks.db"] and items.live()["atlas-installation"] == str(target.resolve())
+    assert _reopen(target, keys, task_id) == "completed"
 
 
 def test_a_restore_interrupted_after_its_commit_point_is_completed_and_the_installation_reopens(world, tmp_path):

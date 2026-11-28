@@ -247,6 +247,18 @@ def test_a_locked_keychain_makes_the_core_exit_with_its_own_code_and_the_launche
     assert str(e.value) == "needs_owner_signin" and process.bootstrap_code is None
 
 
+def test_a_folder_that_does_not_own_the_keys_exits_with_its_own_code_and_opens_nothing(tmp_path):
+    """MAC-17: a start refused because another data folder owns the account's keys exits 8 (not "needs sign-in"), leaves only the folder
+    lock, and the launcher names the reason."""
+    from atlas_core import launcher, serve
+
+    assert launcher.EXIT_NOT_KEY_OWNER == serve.EXIT_NOT_KEY_OWNER == 8
+    process = launcher.CoreProcess(tmp_path / "core", tmp_path / "run" / "core.sock", config_factory="core_factory:not_key_owner", allow_custom_factory=True)
+    with pytest.raises(launcher.LaunchFailed) as e:
+        process.start(timeout=30)
+    assert str(e.value) == "not_key_owner" and sorted(p.name for p in (tmp_path / "core").iterdir()) == ["core.lock"]
+
+
 FACTORY_CALLS: list[str] = []
 
 

@@ -14,6 +14,7 @@ import time
 from pathlib import Path
 
 EXIT_NEEDS_SIGNIN = 6  # kept equal to `serve.EXIT_NEEDS_SIGNIN` (a test asserts it); the parent does not import the child's module
+EXIT_NOT_KEY_OWNER = 8  # kept equal to `serve.EXIT_NOT_KEY_OWNER`: the store keys belong to another data folder
 
 
 class LaunchFailed(RuntimeError):
@@ -76,7 +77,9 @@ class CoreProcess:
             if not block:
                 code_out = self.process.poll() if self.process.poll() is not None else self._reap_status()
                 self._kill()
-                raise LaunchFailed("needs_owner_signin" if code_out == EXIT_NEEDS_SIGNIN else "exited")
+                raise LaunchFailed(
+                    {EXIT_NEEDS_SIGNIN: "needs_owner_signin", EXIT_NOT_KEY_OWNER: "not_key_owner"}.get(-1 if code_out is None else code_out, "exited")
+                )
             seen += block
         self.bootstrap_code = code
         return str(self.socket_path)

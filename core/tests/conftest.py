@@ -245,6 +245,14 @@ def _everything_logged(caplog: pytest.LogCaptureFixture) -> None:
     caplog.set_level(logging.DEBUG)
 
 
+@pytest.fixture(autouse=True)
+def _own_key_restore_lock(tmp_path_factory: pytest.TempPathFactory, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Each test gets its own account-wide key-restore lock, never the real one under the home folder."""
+    from atlas_core import keyrestore
+
+    monkeypatch.setattr(keyrestore, "ACCOUNT_LOCK", tmp_path_factory.mktemp("restore-lock") / "key-restore.lock")
+
+
 def parse_events(lines: list[str]) -> list[dict[str, Any]]:
     return [json.loads(line) for line in lines]
 

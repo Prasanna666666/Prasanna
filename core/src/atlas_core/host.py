@@ -41,6 +41,11 @@ class HostUnavailable(RuntimeError):
     """This machine cannot provide the real platform parts."""
 
 
+class NotKeyOwner(HostUnavailable):
+    """The account's store keys belong to another data folder (or a restore holds them too long): this folder's start is refused before any key
+    is read or store opened, so another installation's files are never opened under the wrong keys and never orphaned."""
+
+
 class KeychainLocked(HostUnavailable):
     """The Keychain would not give the store keys. On a Mac that has just restarted this is the normal state until the owner signs in (FileVault stays on; there is no auto-login): the Core does not start,
     says so with its own exit code, and the app shows "Mac needs owner sign-in"."""
@@ -62,6 +67,7 @@ class HostEnv:
     account: str | None = None
     runtime: ModelRuntime | None = None  # None: the MLX engine in the isolated worker
     native: Platform | None = None  # None: the real platform when its frameworks can be loaded, else no native sources
+    restore_lock: Path | None = None  # None: the account-wide key-restore lock (keyrestore.ACCOUNT_LOCK)
 
 
 class OwnStorePermissions:
@@ -139,11 +145,16 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         raise HostUnavailable("the real platform providers exist only for macOS")
     items = KeychainItems(env.account, env.runner)
     try:
-        keyrestore.recover(items)  # an interrupted restore is finished or undone, account-wide, before any key is read
-        keyrestore.claim(items, data_dir)  # add-only: this folder owns the live keys unless another installation already does
-        keys = {name: items.secret(name) for name in KEY_NAMES}
-        record_key = bytes.fromhex(items.secret("model-record"))
-    except (KeychainError, keyrestore.KeyRestoreError):
+        # under the account-wide restore lock: an interrupted restore is finished or undone, this folder's ownership of the keys is verified,
+        # and only then are the keys read
+        keys, record_key = keyrestore.open_keys(
+            items, data_dir, env.restore_lock, lambda: ({name: items.secret(name) for name in KEY_NAMES}, bytes.fromhex(items.secret("model-record")))
+        )
+    except keyrestore.KeyRestoreError as error:
+        if error.code in ("not_owner", "busy"):
+            raise NotKeyOwner("this data folder does not own the store keys") from None
+        raise KeychainLocked("the Keychain could not provide the store keys") from None
+    except KeychainError:
         raise KeychainLocked("the Keychain could not provide the store keys") from None
     folders = dict(entry for entry in (options.documents, options.mail) if entry is not None)
     data_dir.mkdir(parents=True, exist_ok=True, mode=0o700)

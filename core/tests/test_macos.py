@@ -309,6 +309,23 @@ def test_the_host_builds_a_config_from_the_keychain_folders_and_an_installed_sig
     assert again.task_key == config.task_key  # the same Keychain items on the next start
 
 
+def test_the_host_refuses_a_second_data_folder_while_the_owning_one_holds_files_and_reads_no_key(tmp_path):
+    """MAC-17: the Keychain keys are account-wide; the first start records its folder as their owner. A start of another folder, while the
+    owner still holds its stores, is refused with its own error (serve exit 8) before any key is read or created."""
+    from atlas_core import serve
+    from atlas_core.host import NotKeyOwner
+
+    sec = FakeSecurity()
+    build_config(tmp_path / "first", tmp_path / "s", None, HostOptions(), HostEnv("darwin", sec, "owner", runtime=object()))
+    assert any(f.name.endswith(".db") for f in (tmp_path / "first").iterdir())  # the owner holds its stores
+    before, reads = dict(sec.items), len(sec.argvs)
+    with pytest.raises(NotKeyOwner):
+        build_config(tmp_path / "second", tmp_path / "s2", None, HostOptions(), HostEnv("darwin", sec, "owner", runtime=object()))
+    asked = [a[a.index("-s") + 1] for a in sec.argvs[reads:] if "-s" in a]
+    assert sec.items == before and not any(name.startswith("atlas-") and name not in ("atlas-installation", "atlas-restore-journal") for name in asked)
+    assert serve.EXIT_NOT_KEY_OWNER == 8 and not (tmp_path / "second").exists()
+
+
 def test_a_missing_or_badly_signed_manifest_means_no_models_never_an_unsigned_one(tmp_path):
     assert load_manifest(tmp_path, None).entries() == []
     signed_manifest(tmp_path, tmp_path / "pub.key")

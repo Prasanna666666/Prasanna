@@ -19,7 +19,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let path = ProcessInfo.processInfo.environment["ATLAS_UI_TEST_STATE_FILE"] else { return }
         // UI-test diagnostics only (architect review 6094872675, MAC-08 option iii): the app's own record of whether it is active and which
         // window is key, written to the file the test names, so an accessibility tree that reports the window as Disabled can be explained.
-        let names: [Notification.Name] = [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification, NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification, NSWindow.didBecomeMainNotification]
+        let names: [Notification.Name] = [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification, NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification, NSWindow.didBecomeMainNotification, NSWindow.didChangeOcclusionStateNotification]
         for name in names {
             stateObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { Self.recordState(name.rawValue, to: path) } })
         }
@@ -43,7 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @MainActor static func recordState(_ event: String, to path: String) {
         let windows = NSApp.windows.map { w in "'\(w.title)' key=\(w.isKeyWindow) main=\(w.isMainWindow) visible=\(w.isVisible) visibleOcclusion=\(w.occlusionState.contains(.visible)) sheet=\(w.attachedSheet != nil)" }
-        let line = "\(event): active=\(NSApp.isActive) hidden=\(NSApp.isHidden) modal=\(NSApp.modalWindow != nil) policy=\(NSApp.activationPolicy().rawValue) windows=\(windows)\n"
+        let line = "\(event): appearance=\(NSApp.effectiveAppearance.name.rawValue) active=\(NSApp.isActive) hidden=\(NSApp.isHidden) modal=\(NSApp.modalWindow != nil) policy=\(NSApp.activationPolicy().rawValue) windows=\(windows)\n"
         if let handle = FileHandle(forWritingAtPath: path) {
             handle.seekToEndOfFile()
             handle.write(Data(line.utf8))

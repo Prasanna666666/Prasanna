@@ -11,6 +11,8 @@ import Security
 public final class CoreLauncher {
     /// The Core's exit status when the Keychain is locked (`serve.EXIT_NEEDS_SIGNIN`).
     public static let needsOwnerSignInStatus: Int32 = 6
+    /// The Core's exit status when the account's store keys belong to another data folder (`serve.EXIT_NOT_KEY_OWNER`).
+    public static let notKeyOwnerStatus: Int32 = 8
     public private(set) var bootstrapCode: String?
     private var process: Process?
     private let executable: URL
@@ -133,7 +135,12 @@ public final class CoreLauncher {
             if child.isRunning { kill(child.processIdentifier, SIGKILL) }
             child.waitUntilExit()  // a Core that did not become ready is stopped and reaped, never left behind
             // exit code 6: the Keychain would not give the store keys, which is the normal state of a Mac that restarted and has not been signed in to (FileVault stays on; no auto-login)
-            throw AtlasError.local(child.terminationStatus == CoreLauncher.needsOwnerSignInStatus ? "Mac needs owner sign-in" : "the Core did not start")
+            // exit code 8: the store keys belong to another Atlas data folder on this Mac, so this one is not opened under them
+            switch child.terminationStatus {
+            case CoreLauncher.needsOwnerSignInStatus: throw AtlasError.local("Mac needs owner sign-in")
+            case CoreLauncher.notKeyOwnerStatus: throw AtlasError.local("another Atlas data folder uses this Mac's keys")
+            default: throw AtlasError.local("the Core did not start")
+            }
         }
         process = child
         bootstrapCode = code

@@ -36,6 +36,13 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
     )  # fmt: skip
 
 
+def not_key_owner(data_dir, socket_path, bootstrap_code, options=None):
+    """The account's store keys belong to another data folder that still holds its files."""
+    from atlas_core.host import NotKeyOwner
+
+    raise NotKeyOwner("not owner")
+
+
 def keychain_locked(data_dir, socket_path, bootstrap_code, options=None):
     """A Mac that has restarted and not been signed in to: the Keychain gives no keys."""
     from atlas_core.host import KeychainLocked

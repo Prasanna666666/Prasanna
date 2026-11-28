@@ -86,7 +86,7 @@ final class PairingLogicTests: XCTestCase {
 
 /// The phone engine against the real Core: pairing with a pinned key, reading, working offline, syncing, a conflict, and revocation. Needs `ATLAS_CI_PYTHON` (set by the CI `macos` job).
 final class PhoneEngineEndToEndTests: XCTestCase {
-    private let services = ["task-store", "designation-store", "documents-index", "mail-index", "edits-store", "finance-records", "finance-index", "health-records", "health-index", "calendar-index", "contacts-index", "notes-index", "photos-index", "model-record"].map { "atlas-\($0)" } + ["atlas-designation-anchor"]
+    private let services = ["task-store", "designation-store", "documents-index", "mail-index", "edits-store", "finance-records", "finance-index", "health-records", "health-index", "calendar-index", "contacts-index", "notes-index", "photos-index", "model-record"].map { "atlas-\($0)" } + ["atlas-designation-anchor", "atlas-installation", "atlas-restore-journal"]
 
     private func deleteKeychainItems() {
         for service in services {

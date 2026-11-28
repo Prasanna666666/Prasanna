@@ -5,6 +5,7 @@ from __future__ import annotations
 import io
 import json
 import os
+import time
 from pathlib import Path
 
 import pytest
@@ -149,17 +150,25 @@ class _Items:
     item whose name ends so reads back wrong after any write. With `path`, the items live in a JSON file and `crash_at` kills the process
     (os._exit) at the Nth write, so no exception handler runs: a real interruption. `add_if_absent` counts as a write when it adds."""
 
-    def __init__(self, existing=None, fail_write_at=None, fail_delete=False, lie_on=None, path=None, crash_at=None):
+    def __init__(self, existing=None, fail_write_at=None, fail_delete=False, lie_on=None, path=None, crash_at=None, pause_at=None):
         self.path = path
         self.store = dict(existing or {}) if path is None or not path.exists() else json.loads(path.read_text())
         self.writes, self.fail_write_at, self.fail_delete, self.lie_on, self.crash_at = 0, fail_write_at, fail_delete, lie_on, crash_at
+        self.pause_at = pause_at
         self._save()
+
+    def _load(self):  # file-backed items are shared between processes, like the real Keychain: always read the current state
+        if self.path is not None and self.path.exists():
+            self.store = json.loads(self.path.read_text())
 
     def _save(self):
         if self.path is not None:
-            self.path.write_text(json.dumps(self.store))
+            temp = self.path.with_suffix(f".{os.getpid()}.tmp")
+            temp.write_text(json.dumps(self.store))
+            os.replace(temp, self.path)
 
     def read(self, service):
+        self._load()
         lie = self.lie_on and self.writes and service.startswith("atlas-staged-") and service.endswith(self.lie_on)
         return "not-what-was-written" if lie else self.store.get(service)
 
@@ -169,16 +178,22 @@ class _Items:
             os._exit(9)
         if self.writes == self.fail_write_at:
             raise OSError("keychain write failed")
+        if self.writes == self.pause_at:  # a live restore, mid-transaction: says so, then takes its time
+            self.path.with_suffix(".paused").touch()
+            time.sleep(1.5)
+        self._load()
         self.store[service] = value
         self._save()
 
     def add_if_absent(self, service, value):
+        self._load()
         if service not in self.store:
             self.write(service, value)
 
     def delete(self, service):
         if self.fail_delete:
             raise OSError("keychain delete failed")
+        self._load()
         self.store.pop(service, None)
         self._save()
 
@@ -204,7 +219,7 @@ def test_recovered_keys_are_installed_as_one_unit_and_leave_nothing_staged(tmp_p
     assert items.store == _after(tmp_path / "restored")  # no staged item, no journal, and the restored folder now owns the keys
 
 
-@pytest.mark.parametrize("failure", [{"fail_write_at": 3}, {"lie_on": "edits-store"}, {"fail_write_at": 3, "fail_delete": True}])
+@pytest.mark.parametrize("failure", [{"fail_write_at": 3}, {"lie_on": "edits-store"}, {"fail_write_at": 3, "fail_delete": True}, {"fail_write_at": 5}])
 def test_a_failure_before_the_commit_point_never_touches_a_live_key_even_when_clean_up_fails(tmp_path, failure):
     """MAC-17: staging writes only inactive items of this transaction, so a staging failure (or a failed read-back, or a clean-up whose
     deletes fail too) leaves every live key exactly as it was; leftover inactive items and the journal are removed by the next recovery."""
@@ -313,3 +328,63 @@ def test_a_restore_never_replaces_keys_another_installation_still_needs(tmp_path
     with pytest.raises(keyrestore.KeyRestoreError, match="owner_unknown" if owner is None else "another_installation"):
         provision_staged(items, BUNDLE, tmp_path / "restored")
     assert items.store == before and items.writes == 0
+
+
+_LIVE_RESTORE = """
+import sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[3])
+from test_maintenance import _Items, BUNDLE
+from atlas_core.maintenance import provision_staged
+items = _Items(path=Path(sys.argv[1]), pause_at=int(sys.argv[2]))
+provision_staged(items, BUNDLE, Path(sys.argv[4]), Path(sys.argv[5]))
+"""
+
+
+@pytest.mark.parametrize("pause_at", [3, 7])  # mid-staging, and mid-commit after the commit point
+def test_a_start_during_a_live_restore_waits_for_it_and_never_recovers_its_transaction(tmp_path, pause_at):
+    """MAC-17: a restore in another process is still running (paused while staging, or while promoting). A Core starting meanwhile waits on the
+    account-wide lock instead of taking the live journal for an interrupted one: it neither undoes the staging nor races the commit, and
+    afterwards reads the complete new set as the restored folder's owner."""
+    import subprocess
+    import sys
+
+    from atlas_core import keyrestore
+
+    store, target, lock = tmp_path / "keychain.json", tmp_path / "restored", tmp_path / "account.lock"
+    target.mkdir()
+    _Items(OLD, path=store)
+    run = [sys.executable, "-c", _LIVE_RESTORE, str(store), str(pause_at), str(Path(__file__).parent), str(target), str(lock)]
+    restore = subprocess.Popen(run, stderr=subprocess.PIPE)
+    marker = store.with_suffix(".paused")
+    deadline = time.monotonic() + 30
+    while not marker.exists() and time.monotonic() < deadline:
+        time.sleep(0.02)
+    assert marker.exists(), "the restore reached its pause"
+    items, started = _Items(path=store), time.monotonic()
+    keys = keyrestore.open_keys(items, target, lock, lambda: {k: items.read(k) for k in NEW})
+    waited = time.monotonic() - started
+    assert restore.wait(timeout=30) == 0, restore.stderr.read() if restore.stderr else ""
+    assert waited > 0.5 and keys == NEW  # it waited for the live restore, then read the new set
+    assert items.store == _after(target)
+
+
+def test_a_start_of_a_folder_that_does_not_own_the_keys_is_refused_before_any_key_is_read(tmp_path):
+    """MAC-17: the live keys belong to a folder that still holds files, so another folder's start is refused (`not_owner`) without reading a
+    key; a new, empty folder takes over only from an owner that no longer holds files; and the owner itself starts normally."""
+    from atlas_core import keyrestore
+
+    owner, other, lock = tmp_path / "owner", tmp_path / "other", tmp_path / "account.lock"
+    owner.mkdir()
+    (owner / "tasks.db").write_bytes(b"under old-task-key")
+    items = _Items({k: v for k, v in OLD.items() if k != "atlas-installation"})  # an installation from before ownership was recorded
+    keyrestore.open_keys(items, owner, lock, lambda: None)  # its start records it as the owner
+    reads = []
+    with pytest.raises(keyrestore.KeyRestoreError, match="not_owner"):
+        keyrestore.open_keys(items, other, lock, lambda: reads.append("read"))
+    assert reads == [] and items.store["atlas-installation"] == str(owner.resolve())
+    other.mkdir()
+    (other / "core.lock").touch()  # a starting Core's own folder lock is not data
+    (owner / "tasks.db").unlink()
+    keyrestore.open_keys(items, other, lock, lambda: reads.append("read"))
+    assert reads == ["read"] and items.store["atlas-installation"] == str(other.resolve())

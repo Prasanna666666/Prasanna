@@ -21,7 +21,7 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 14.0%** (30.5/218) · **Review completion 6.9%** (15/218) · register v0.3 (the file as committed) scoring software revision `e23b04b` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976))
+**Implementation readiness 14.0%** (30.5/218) · **Review completion 6.9%** (15/218) · register v0.3 (the file as committed) scoring software revision `a3c7f7d` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976))
 
 Mandatory criteria not yet passing: **206** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
 
@@ -38,7 +38,7 @@ Record structure validated by the calculator: 218 of 218 scored criteria carry n
 
 First Mac milestone view (criteria tagged first-mac): implementation 12/19 (63.2%), review 13/19 (68.4%).
 
-Supporting inventory (git-tracked): 286 source files, 47,079 lines, 2991 functions; 210 test files, 1923 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 9 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 286 source files, 47,203 lines, 2996 functions; 210 test files, 1928 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 10 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->
@@ -50,7 +50,7 @@ Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 `scripts/build_acceptance_register.py` builds the register from the repository's own inventories. v0.2 answered the architect's v0.1 review
 ([7226745827](https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7226745827)); v0.3 answers the v0.2 review
 ([6093128990](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990)). 232 entries; 218 are scored. Every entry's
-evidence cites the **scored software revision** `e23b04b` and its PR CI run 46086267907; the register itself is the file at the commit that holds it.
+evidence cites the **scored software revision** `a3c7f7d` and its PR CI run 46095345457; the register itself is the file at the commit that holds it.
 
 | Scope | Count | Scored | Entries |
 |---|---:|---|---|
@@ -107,3 +107,4 @@ file-level review and is not counted as line or function coverage.
 | 3 | `2815257f391f5fffa6168ac1ff00bca41a8bc1dc` | 12.8% (28/218) | 5.5% (12/218) | v0.3 agreed as the 218-criterion reporting baseline; arithmetic reproduced. Verdicts: MAC-14 pass, MAC-18 pass, MAC-13 pending (checkpoint verified), MAC-15 fail, MAC-06 fail, MAC-08 fail. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586) |
 | 4 | `6574c2cb8dd23c9d1a3a7084c6aa1e207756900c` | 14.0% (30.5/218) | 6.9% (15/218) | Verdicts: MAC-13 pass, MAC-15 pass, MAC-19 pass; MAC-17 fail (rollback can fail, a killed process skips it), MAC-06 fail (mac-ui), MAC-08 fail (option b: assert the effective appearance, then a layout change, no exemption). Arithmetic reproduced by the calculator. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094252873) |
 | 5 | `e23b04bff48c2c3d79976b50921f86d91a3c46ce` | 14.0% (30.5/218) | 6.9% (15/218) | No change. Verdicts: MAC-17 fail (single-target recovery accepted in design; ownership across data folders missing), MAC-08 fail (appearances verified; investigate the Disabled window state first, no exemption), MAC-06 fail. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094872675) |
+| 6 | `a3c7f7d009ff70d7feda917d5d4a3ea9dc030e71` | 14.0% (30.5/218) | 6.9% (15/218) | No change. Verdicts: MAC-17 fail (account-wide design accepted; serialize recovery with live restore, enforce ownership at startup, keep data on an unconfirmed commit point), MAC-08 fail (choose (a): make the window key first), MAC-06 fail. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095269004) |

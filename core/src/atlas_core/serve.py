@@ -18,7 +18,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from .app import Core, CoreAlreadyRunning, CoreConfig, acquire_data_dir
-from .host import HostOptions, HostUnavailable, KeychainLocked
+from .host import HostOptions, HostUnavailable, KeychainLocked, NotKeyOwner
 from .relay import Relay, RelayRefused
 
 CODE_SHAPE = re.compile(r"[A-Za-z0-9_-]{16,64}\Z")
@@ -29,6 +29,7 @@ EXIT_SHUTDOWN_INCOMPLETE = (
     7  # work was still running when the Core had to stop: the stores were left as they were and the process ends (which releases the folder lock)
 )
 EXIT_NEEDS_SIGNIN = 6  # the Keychain would not give the store keys: the Mac has not been signed in to since it restarted
+EXIT_NOT_KEY_OWNER = 8  # the account's store keys belong to another data folder: nothing was read or opened
 
 
 def _factory(spec: str, allow_custom: bool) -> FactoryT:
@@ -111,12 +112,10 @@ def _open_core(args: argparse.Namespace, code: str | None, options: HostOptions)
         return EXIT_BUSY
     try:
         config = _factory(args.config_factory, args.allow_custom_factory)(data_dir, Path(args.socket), code, options)
-    except KeychainLocked:
+    except HostUnavailable as refused:
         _give_up(lock)
-        return EXIT_NEEDS_SIGNIN  # no key provisioned, nothing opened, bound or written (only the empty lock file exists)
-    except HostUnavailable:
-        _give_up(lock)
-        return EXIT_REFUSED
+        # no key provisioned, nothing opened, bound or written (only the empty lock file exists); each refusal has its own exit status
+        return EXIT_NEEDS_SIGNIN if isinstance(refused, KeychainLocked) else EXIT_NOT_KEY_OWNER if isinstance(refused, NotKeyOwner) else EXIT_REFUSED
     except BaseException:
         _give_up(lock)  # any other failure of the factory: the lock is released, never leaked to a process that goes on running
         raise

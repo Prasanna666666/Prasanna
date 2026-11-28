@@ -17,15 +17,30 @@ serialized transaction, and the installation that owns the live keys is recorded
    target and the journal is removed. Every step can be repeated.
 6. **Recovery.** Before the Core reads any key (in any data folder), `recover` finishes a `committing` journal and undoes a `staging` one,
    so the live keys are always one consistent set, the old one or the new one, with the owner recorded to match.
+
+Every step that reads or changes the journal, the owner record or the live keys runs under one account-wide, cross-process lock (`guard`):
+a restore holds it from its first recovery to its last promotion, and a starting Core holds it across recovery, the ownership check and
+its key reads (`open_keys`). So a live transaction is never mistaken for an interrupted one, and two recoveries never run at once.
+A start refuses a data folder that does not own the live keys (`not_owner`) unless the recorded owner no longer holds files and this folder
+is new. When the commit point's write may have persisted but cannot be confirmed, the journal is read again under the same lock: the target's
+files are kept unless the journal is confirmed not to have reached the commit point.
 """
 
 from __future__ import annotations
 
+import fcntl
 import json
+import os
 import secrets
-from collections.abc import Iterable, Mapping
+import time
+from collections.abc import Callable, Iterable, Iterator, Mapping
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, TypeVar
+
+T = TypeVar("T")
+ACCOUNT_LOCK = Path.home() / "Library" / "Application Support" / "Atlas" / "key-restore.lock"  # one per account, like the keys
+LOCK_WAIT = 30.0
 
 JOURNAL_ITEM, OWNER_ITEM = "atlas-restore-journal", "atlas-installation"
 LIVE_PREFIX, STAGED_PREFIX = "atlas-", "atlas-staged-"
@@ -107,17 +122,74 @@ def _commit(items: KeyItems, record: dict[str, Any]) -> None:
     items.delete(JOURNAL_ITEM)
 
 
+FOLDER_LOCK = "core.lock"  # the data-folder lock a starting Core takes first (app.acquire_data_dir); it protects nothing under a key
+
+
 def _holds_files(folder: Path) -> bool:
-    return folder.is_dir() and any(folder.iterdir())
+    return folder.is_dir() and any(entry.name != FOLDER_LOCK for entry in folder.iterdir())
 
 
-def claim(items: KeyItems, data_dir: Path) -> None:
-    """Record, add-only, that this data folder owns the live keys (the first start, or an installation from before ownership was recorded)."""
-    items.add_if_absent(OWNER_ITEM, str(data_dir.resolve()))
+@contextmanager
+def guard(lock: Path, wait: float = LOCK_WAIT) -> Iterator[None]:
+    """The account-wide, cross-process lock around every key-restore step. Released when the process ends, so a crash never leaves it held."""
+    lock.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(lock, os.O_RDWR | os.O_CREAT, 0o600)
+    try:
+        deadline = time.monotonic() + wait
+        while True:
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                break
+            except BlockingIOError:
+                if time.monotonic() >= deadline:
+                    raise KeyRestoreError("busy") from None
+                time.sleep(0.05)
+        yield
+    finally:
+        os.close(fd)  # closing the descriptor releases the lock
 
 
-def provision(items: KeyItems, keys: Mapping[str, str], target: Path) -> None:
+def verify_owner(items: KeyItems, data_dir: Path) -> None:
+    """Called under `guard`. Records, add-only, that this folder owns the live keys (the first start, or an installation from before ownership
+    was recorded), then refuses unless it really does. A new, empty folder takes over only from a recorded owner that no longer holds files."""
+    here = str(data_dir.resolve())
+    items.add_if_absent(OWNER_ITEM, here)
+    owner = items.read(OWNER_ITEM)
+    if owner == here:
+        return
+    if owner is None:
+        raise KeyRestoreError("verify")
+    if _holds_files(Path(owner)) or _holds_files(data_dir):
+        raise KeyRestoreError("not_owner")  # the keys protect another folder's files, or this folder's files are not under these keys
+    items.write(OWNER_ITEM, here)
+    if items.read(OWNER_ITEM) != here:
+        raise KeyRestoreError("verify")
+
+
+def open_keys(items: KeyItems, data_dir: Path, lock: Path | None, read: Callable[[], T]) -> T:
+    """A starting Core's whole key step under the lock: finish or undo an interrupted restore, verify that this folder owns the keys, read them."""
+    with guard(lock or ACCOUNT_LOCK):
+        recover(items)
+        verify_owner(items, data_dir)
+        return read()
+
+
+def _commit_point_persisted(items: KeyItems, record: dict[str, Any]) -> bool:
+    """Whether the `committing` journal may be in the Keychain after its write could not be confirmed: true unless it reads back as not committed."""
+    try:
+        stored = _journal(items)
+    except Exception:  # noqa: BLE001 - unreadable: it may have persisted, so the restored files are kept for recovery to resolve
+        return True
+    return stored is not None and stored.get("tx") == record["tx"] and stored.get("state") == "committing"
+
+
+def provision(items: KeyItems, keys: Mapping[str, str], target: Path, lock: Path | None = None) -> None:
     """Install `keys` (live item name -> value) as one unit for the installation in `target`, recoverably and serialized account-wide."""
+    with guard(lock or ACCOUNT_LOCK):
+        _provision(items, keys, target)
+
+
+def _provision(items: KeyItems, keys: Mapping[str, str], target: Path) -> None:
     recover(items)  # an earlier interrupted restore is finished or undone before this one starts
     target, services = target.resolve(), list(keys)
     owner = items.read(OWNER_ITEM)
@@ -141,7 +213,14 @@ def provision(items: KeyItems, keys: Mapping[str, str], target: Path) -> None:
             items.delete(JOURNAL_ITEM)
         raise
     record["state"] = "committing"
-    _save(items, record)  # the commit point: from here the new set is completed, never abandoned
+    try:
+        _save(items, record)  # the commit point: from here the new set is completed, never abandoned
+    except Exception as error:
+        if _commit_point_persisted(items, record):
+            raise KeyCommitIncomplete("commit_unconfirmed") from error  # kept: recovery under the lock finishes it
+        if _discard_staged(items, tx, services):
+            items.delete(JOURNAL_ITEM)
+        raise
     try:
         _commit(items, record)
     except Exception as error:
@@ -149,7 +228,8 @@ def provision(items: KeyItems, keys: Mapping[str, str], target: Path) -> None:
 
 
 def recover(items: KeyItems) -> str:
-    """Finish or undo an interrupted key restore, whichever data folder is starting. Returns 'none', 'completed' (rolled forward) or 'discarded'."""
+    """Called under `guard`. Finish or undo an interrupted key restore, whichever data folder is starting. Returns 'none', 'completed' (rolled
+    forward) or 'discarded'."""
     record = _journal(items)
     if record is None:
         return "none"
