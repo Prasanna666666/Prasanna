@@ -1,0 +1,250 @@
+"""Per-client identity: every request is signed with the client's own Ed25519 key. Nothing is trusted because it comes from localhost or carries an Origin header."""
+
+from __future__ import annotations
+
+import base64
+import hashlib
+import hmac
+import json
+import os
+import secrets
+import threading
+from collections import OrderedDict
+from collections.abc import Mapping
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
+
+from .errors import CoreError
+from .rules import Rules, load_rules
+
+H_CLIENT, H_TIME, H_NONCE, H_SIG, H_VERSION = "x-atlas-client", "x-atlas-timestamp", "x-atlas-nonce", "x-atlas-signature", "x-atlas-api-version"
+
+
+def canonical(method: str, target: str, timestamp: str, nonce: str, body: bytes, version: str = "1.0") -> bytes:
+    """The signed message: five fields for 1.0, six for 1.1 with the applied version first (CONTRACT_1_1.md, Signing). No field may contain CR or LF."""
+    fields = [method.upper(), target, timestamp, nonce, hashlib.sha256(body).hexdigest()]
+    if any("\r" in f or "\n" in f for f in fields):
+        raise ValueError("line break in a signed field")
+    return "\n".join(fields if version == "1.0" else [version, *fields]).encode()
+
+
+def sign_request(  # noqa: PLR0913
+    key: Ed25519PrivateKey, client_id: str, method: str, target: str, body: bytes, now: datetime, nonce: str | None = None, *, version: str = "1.0"
+) -> dict[str, str]:
+    """What a client sends (used by clients and by the tests). For 1.1 the version is signed and sent in the version header."""
+    stamp, one_time = str(int(now.timestamp())), nonce or secrets.token_hex(12)
+    signature = key.sign(canonical(method, target, stamp, one_time, body, version))
+    out = {H_CLIENT: client_id, H_TIME: stamp, H_NONCE: one_time, H_SIG: base64.b64encode(signature).decode()}
+    return out if version == "1.0" else {**out, H_VERSION: version}
+
+
+def write_durably(path: Path, text: str) -> None:
+    """Replace `path` so the new content survives a crash or power loss: write a private temporary file (never through a link), flush and fsync it, rename it over the old file, then fsync the folder so the
+    rename itself is on disk. The caller reports success only after this returns."""
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.unlink(missing_ok=True)
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0), 0o600)
+    with os.fdopen(fd, "w", encoding="utf-8") as handle:
+        handle.write(text)
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temporary, path)
+    directory = os.open(path.parent, os.O_RDONLY)
+    try:
+        os.fsync(directory)
+    finally:
+        os.close(directory)
+
+
+@dataclass
+class _Client:
+    key: Ed25519PublicKey
+    revoked: bool = False
+    owner: bool = False  # an enrolled owner-interactive client: the only kind that may change consent
+
+
+class NonceCache:
+    """A nonce is accepted once within its time window; the cache is bounded by time."""
+
+    def __init__(self, ttl_seconds: int, path: Path | None = None) -> None:
+        self._ttl, self._seen, self._lock, self._path, self._appended = ttl_seconds, OrderedDict[str, float](), threading.Lock(), path, 0
+        if path is not None:
+            self._restore(path)
+
+    def _restore(self, path: Path) -> None:
+        """With a ledger file the cache survives a restart: a captured request that was used before the Core stopped is refused after it starts again, for as long as its timestamp would still be accepted."""
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            lines = []
+        for line in lines:
+            stamp, _, key = line.partition(" ")
+            try:
+                used_at = float(stamp)
+            except ValueError:
+                continue  # a damaged line is ignored; the rest of the ledger still counts
+            if key:
+                self._seen[key] = used_at  # expired entries are dropped by the next request, using that request's own clock
+
+    def _rewrite(self) -> None:
+        if self._path is None:
+            return
+        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.writelines(f"{t} {k}\n" for k, t in self._seen.items())
+        self._appended = 0
+
+    def _append(self, key: str, now: float) -> None:
+        if self._path is None:
+            return
+        if self._appended > max(1024, 4 * len(self._seen)):
+            self._rewrite()
+            return
+        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(f"{now} {key}\n")  # written (and flushed) before the request is accepted, so a crash after acceptance cannot forget it
+        self._appended += 1
+
+    def first_use(self, key: str, now: float) -> bool:
+        with self._lock:
+            while self._seen and next(iter(self._seen.values())) < now - self._ttl:
+                self._seen.popitem(last=False)
+            if key in self._seen:
+                return False
+            self._seen[key] = now
+            self._append(key, now)
+            return True
+
+
+class BootstrapGate:
+    """The single-use code that guards the first-run owner enrolment. Only the process that starts the Core knows it (it hands it to the app over a private channel such as an
+    inherited pipe), so another program of the same user that merely reaches the socket cannot enrol. It is compared in constant time, locks after a few wrong tries, is used up by the
+    first success and is never written to a log or a file."""
+
+    MAX_FAILURES = 5
+
+    def __init__(self, code: str) -> None:
+        if len(code) < 16:  # noqa: PLR2004
+            raise ValueError("bootstrap code too short")
+        self._digest = hashlib.sha256(code.encode()).digest()
+        self._failures, self._used, self._lock = 0, False, threading.Lock()
+
+    def check(self, offered: object) -> bool:
+        """True only for the right code, while the gate is open. A wrong or missing code counts as a failure; after MAX_FAILURES the gate stays shut until the Core restarts."""
+        with self._lock:
+            if self._used or self._failures >= self.MAX_FAILURES:
+                return False
+            good = isinstance(offered, str) and hmac.compare_digest(hashlib.sha256(offered.encode()).digest(), self._digest)
+            if not good:
+                self._failures += 1
+            return good
+
+    def consume(self) -> None:
+        with self._lock:
+            self._used = True
+
+
+class ClientRegistry:
+    """The enrolled clients. With a `path` the registry is durable (a JSON file, mode 0600, in the Core's own owner-only folder; it holds PUBLIC keys only) and survives a restart."""
+
+    def __init__(self, rules: Rules | None = None, path: Path | None = None) -> None:
+        self._rules = rules or load_rules()
+        self._clients: dict[str, _Client] = {}
+        self._nonces = NonceCache(self._rules.limit("nonce_ttl_seconds"), path.with_suffix(".nonces") if path is not None else None)
+        self._path, self._lock = path, threading.Lock()
+        if path is not None and path.exists():
+            for client_id, row in json.loads(path.read_text()).items():
+                self._clients[client_id] = _Client(Ed25519PublicKey.from_public_bytes(base64.b64decode(row["key"])), bool(row["revoked"]), bool(row["owner"]))
+
+    def _save(self) -> None:
+        if self._path is None:
+            return
+        rows = {i: {"key": base64.b64encode(c.key.public_bytes_raw()).decode(), "owner": c.owner, "revoked": c.revoked} for i, c in self._clients.items()}
+        write_durably(self._path, json.dumps(rows))
+
+    def register(self, client_id: str, public_key: Ed25519PublicKey, *, owner: bool = False) -> None:
+        with self._lock:
+            self._clients[client_id] = _Client(public_key, owner=owner)
+            self._save()
+
+    def has_owner(self) -> bool:
+        return any(c.owner and not c.revoked for c in self._clients.values())
+
+    def enrol_first_owner(self, client_id: str, public_key: Ed25519PublicKey) -> bool:
+        """The one-time first-run enrolment: registers the owner client only if NO owner client is enrolled (checked and written under one lock, so two racing callers cannot both win)."""
+        with self._lock:
+            if self.has_owner() or client_id in self._clients:
+                return False
+            self._clients[client_id] = _Client(public_key, owner=True)
+            try:
+                self._save()
+            except BaseException:
+                del self._clients[client_id]
+                raise
+            return True
+
+    def enrol(self, client_id: str, public_key: Ed25519PublicKey) -> bool:
+        """Add an ordinary (non-owner) client; False if the id is taken."""
+        with self._lock:
+            if client_id in self._clients:
+                return False
+            self._clients[client_id] = _Client(public_key)
+            try:
+                self._save()
+            except BaseException:
+                del self._clients[client_id]  # a failed durable write leaves no half-enrolled client that works until the next restart
+                raise
+            return True
+
+    def remove(self, client_id: str) -> None:
+        """Take an enrolment back (used when pairing fails after the key was stored). A client that was never enrolled is ignored."""
+        with self._lock:
+            if self._clients.pop(client_id, None) is not None:
+                self._save()
+
+    def is_owner(self, client_id: str) -> bool:
+        client = self._clients.get(client_id)
+        return client is not None and client.owner and not client.revoked
+
+    def revoke(self, client_id: str) -> None:
+        """Revoke a client for good. Written to disk at once: a revocation that a restart could forget would be no revocation."""
+        with self._lock:
+            if client_id in self._clients:
+                self._clients[client_id].revoked = True
+                self._save()
+
+    def owner_count(self) -> int:
+        return sum(1 for c in self._clients.values() if c.owner and not c.revoked)
+
+    def known(self, client_id: str) -> bool:
+        return client_id in self._clients
+
+    def is_active(self, client_id: str) -> bool:
+        client = self._clients.get(client_id)
+        return client is not None and not client.revoked
+
+    def verify(self, method: str, target: str, headers: Mapping[str, str], body: bytes, now: datetime, version: str = "1.0") -> str:
+        """The client id of a valid request. Raises CoreError('unauthenticated') for anything missing, wrong, stale or replayed, and 'forbidden' for a revoked client."""
+        client_id, stamp, nonce, signature = (headers.get(h, "") for h in (H_CLIENT, H_TIME, H_NONCE, H_SIG))
+        client = self._clients.get(client_id)
+        if client is None or not (stamp and nonce and signature) or not self._fresh(stamp, now):
+            raise CoreError("unauthenticated")
+        try:
+            client.key.verify(base64.b64decode(signature, validate=True), canonical(method, target, stamp, nonce, body, version))
+        except (InvalidSignature, ValueError):
+            raise CoreError("unauthenticated") from None
+        if client.revoked:
+            raise CoreError("forbidden")
+        if not self._nonces.first_use(f"{client_id}:{nonce}", now.timestamp()):
+            raise CoreError("unauthenticated")
+        return client_id
+
+    def _fresh(self, stamp: str, now: datetime) -> bool:
+        try:
+            return abs(now.timestamp() - int(stamp)) <= self._rules.limit("clock_skew_seconds")
+        except ValueError:
+            return False

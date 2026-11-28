@@ -1,0 +1,68 @@
+{
+  "home": {
+    "title": "Home and devices",
+    "category": "home",
+    "summary": "See the state of your devices and the energy and environment readings, and control them within the rules you set.",
+    "read_scopes": ["device_state", "energy", "environment"],
+    "write_scopes": [
+      {"name": "control_device", "title": "Turn devices on or off and adjust them", "effect": "reversible"},
+      {"name": "unlock_door", "title": "Unlock a door or disable an alarm", "effect": "unlock"}
+    ],
+    "offline": "Shows the last known state, marked as old, and cannot control anything until the home is reachable again.",
+    "retention": "Readings are kept on this Mac only, for as long as you keep them.",
+    "failure": "A device that does not answer is reported as not answering; Atlas never assumes a command worked."
+  },
+  "travel": {
+    "title": "Travel providers",
+    "category": "travel",
+    "summary": "Bring your bookings and itineraries together, and prepare a booking for you to confirm.",
+    "read_scopes": ["itineraries", "bookings"],
+    "write_scopes": [{"name": "book", "title": "Book and pay", "effect": "spend"}],
+    "offline": "Shows what was last fetched, marked as old.",
+    "retention": "Itineraries are kept on this Mac only.",
+    "failure": "A booking that cannot be confirmed is reported as not made."
+  },
+  "work": {
+    "title": "Work platforms",
+    "category": "work",
+    "summary": "Read your projects, tasks and documents, and update tasks you can change back.",
+    "read_scopes": ["projects", "tasks", "documents"],
+    "write_scopes": [
+      {"name": "update_task", "title": "Update a task", "effect": "reversible"},
+      {"name": "post_message", "title": "Post a message", "effect": "send"}
+    ],
+    "offline": "Shows what was last fetched, marked as old.",
+    "retention": "Work content stays on this Mac and is removed when you disconnect.",
+    "failure": "An update the service refuses is reported as refused and nothing is assumed."
+  },
+  "shopping": {
+    "title": "Shopping",
+    "category": "shopping",
+    "summary": "Track orders, returns and warranty windows, and prepare a purchase for you to confirm.",
+    "read_scopes": ["orders", "warranties"],
+    "write_scopes": [{"name": "purchase", "title": "Buy something", "effect": "spend"}],
+    "offline": "Shows what was last fetched, marked as old.",
+    "retention": "Order history is kept on this Mac only.",
+    "failure": "A purchase that cannot be confirmed is reported as not made."
+  },
+  "messaging": {
+    "title": "Messaging",
+    "category": "messaging",
+    "summary": "Read and summarise messages you connect, and draft replies for you to send.",
+    "read_scopes": ["messages"],
+    "write_scopes": [{"name": "send_message", "title": "Send a message", "effect": "send"}],
+    "offline": "Shows what was last fetched, marked as old.",
+    "retention": "Messages are kept on this Mac only and removed when you disconnect.",
+    "failure": "A message that cannot be sent is reported as not sent."
+  },
+  "cloud_storage": {
+    "title": "Cloud storage",
+    "category": "storage",
+    "summary": "Read files you keep online. Nothing is uploaded unless you approve it.",
+    "read_scopes": ["files"],
+    "write_scopes": [{"name": "upload", "title": "Upload or share a file", "effect": "send"}],
+    "offline": "Shows what was last fetched, marked as old.",
+    "retention": "File lists are kept on this Mac only.",
+    "failure": "An upload that fails is reported as not uploaded."
+  }
+}

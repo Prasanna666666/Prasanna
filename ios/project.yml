@@ -1,0 +1,51 @@
+# The Atlas phone app. The project file is generated (`xcodegen`), never hand-edited; CI generates it and builds it for the iOS simulator (see README.md).
+name: AtlasPhone
+options:
+  bundleIdPrefix: invalid.atlas
+  deploymentTarget:
+    iOS: "17.0"
+packages:
+  Atlas:
+    path: ../app
+targets:
+  AtlasPhone:
+    type: application
+    platform: iOS
+    sources:
+      - AtlasPhone
+    dependencies:
+      - package: Atlas
+        product: AtlasKit
+    info:
+      path: AtlasPhone/Info.plist
+      properties:
+        CFBundleDisplayName: Atlas
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSCameraUsageDescription: Atlas uses the camera only to read the pairing code your Mac shows. Nothing is recorded.
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: invalid.atlas.phone
+        SWIFT_VERSION: "5.9"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGN_IDENTITY: ""
+  AtlasPhoneUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - AtlasPhoneUITests
+    dependencies:
+      - target: AtlasPhone
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: invalid.atlas.phone.uitests
+        SWIFT_VERSION: "5.9"
+        CODE_SIGNING_ALLOWED: "NO"
+schemes:
+  AtlasPhone:
+    build:
+      targets:
+        AtlasPhone: all
+    test:
+      targets:
+        - AtlasPhoneUITests

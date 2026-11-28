@@ -1,0 +1,147 @@
+{
+ "version": "1",
+ "locale": "en",
+ "description": "Every user-facing sentence the app shows for a Core state, error, limitation or notice, keyed by the contract's closed vocabularies. Plain words; no code names, paths, stack traces or source content. The completeness test fails if the contract gains a value this file lacks.",
+ "task_states": {
+  "requested": "Atlas received your question.",
+  "policy_checked": "Checking what Atlas may search.",
+  "queued": "Waiting to start.",
+  "running": "Working on it.",
+  "retrieved": "Found the relevant passages.",
+  "drafted": "Wrote a draft answer.",
+  "verified": "Checked the answer against your sources.",
+  "completed": "Done.",
+  "partially_completed": "Done, with limits you should read.",
+  "failed": "This could not be finished.",
+  "cancelled": "You cancelled this.",
+  "expired": "This ran out of time."
+ },
+ "progress_steps": {
+  "policy_checked": "Checked permissions",
+  "retrieved": "Searched your sources",
+  "drafted": "Wrote an answer",
+  "verified": "Checked every citation"
+ },
+ "errors": {
+  "invalid_request": "Atlas did not understand that request.",
+  "unsupported_version": "This app and Atlas speak different versions. Update the app or Atlas.",
+  "unauthenticated": "This device is not recognised by Atlas.",
+  "forbidden": "This device is not allowed to do that.",
+  "not_found": "That no longer exists.",
+  "conflict": "That cannot be done right now.",
+  "source_denied": "Atlas is not allowed to search that kind of source.",
+  "task_cancelled": "The task was cancelled.",
+  "task_expired": "The task ran out of time. You can ask again.",
+  "task_failed": "The task could not be finished. You can ask again.",
+  "needs_attention": "The task was interrupted. Please ask again.",
+  "model_unavailable": "The local model is not available right now. Atlas never sends your questions elsewhere. Check that the model drive is connected and try again.",
+  "citation_failed": "The answer could not be checked against your sources, so Atlas is not showing it.",
+  "timeout": "That took too long. You can try again.",
+  "internal_error": "Something went wrong inside Atlas. Nothing was sent anywhere. You can try again.",
+  "os_access_missing": "macOS has not given Atlas access to that folder or app. Allow it in System Settings, then ask again.",
+  "index_unavailable": "Atlas is still preparing that source. Try again in a moment."
+ },
+ "terminal_reasons": {
+  "none": "",
+  "completed": "Finished normally.",
+  "partial": "Finished, but not everything could be checked.",
+  "cancelled": "Stopped at your request.",
+  "expired": "Stopped because it took too long.",
+  "needs_attention": "Interrupted; ask again.",
+  "citation_failed": "Not shown, because it could not be checked.",
+  "model_unavailable": "The local model was not available.",
+  "denied": "Nothing was searched: Atlas is not allowed to search those sources."
+ },
+ "verification": {
+  "verified": "Every citation was checked against the source, and every figure and date appears in the cited text.",
+  "partially_verified": "Some of this is checked against your sources; read the notes below.",
+  "unverified": "This is not checked against a source. Treat it as unconfirmed.",
+  "failed": "A citation did not hold up, so Atlas is not showing the answer."
+ },
+ "limitations": {
+  "attachments_not_searched": "Email attachments were not searched.",
+  "source_type_not_searched": "Some kinds of source were not searched (see below).",
+  "language_unmeasured": "Atlas has not yet measured how well it handles this language; check the answer yourself.",
+  "language_unsupported": "Atlas cannot reliably handle this language yet.",
+  "low_confidence": "Atlas is not confident about the language of this question.",
+  "figures_unproven": "Some numbers in the answer do not appear in the cited text.",
+  "dates_unproven": "Some dates in the answer do not appear in the cited text.",
+  "context_truncated": "There was more material than fitted; the answer used only part of it.",
+  "partial_work": "Not everything could be searched; the answer may be incomplete.",
+  "answer_withheld": "The answer is hidden because permission to a source it used was withdrawn.",
+  "task_stopped_no_answer": "The task stopped because permission to a source changed. There is no answer.",
+  "sensitive_items_excluded": "Some items were left out because they are more sensitive than your permission covers.",
+  "indexing_incomplete": "Atlas is still reading your sources, so it may have missed some.",
+  "source_unsupported": "Some files are of a kind Atlas cannot read yet.",
+  "os_access_missing": "macOS has not allowed Atlas to read some of your sources.",
+  "attachment_pending": "Some attachments are still waiting to be read."
+ },
+ "coverage_state": {
+  "complete": "Searched everything that is in scope.",
+  "partial": "Searched part of what is in scope.",
+  "indexing": "Still reading your sources; results may be incomplete."
+ },
+ "coverage_pending": {
+  "not_yet_indexed": "not read yet",
+  "attachments": "attachments waiting",
+  "unsupported_source": "in a format Atlas cannot read",
+  "os_access": "blocked by macOS permission"
+ },
+ "coverage_failed": {
+  "unsupported_format": "unsupported format",
+  "encrypted": "password-protected",
+  "corrupt": "damaged",
+  "too_large": "too large",
+  "limit_exceeded": "over a size limit",
+  "extraction_failed": "could not be read",
+  "timeout": "took too long"
+ },
+ "language_support": {
+  "measured": "Language checked.",
+  "unmeasured": "Language not yet measured.",
+  "unsupported": "Language not supported."
+ },
+ "not_searched_reasons": {
+  "granted": "",
+  "no_grant": "You have not allowed Atlas to search this.",
+  "grant_expired": "Your permission for this has expired.",
+  "grant_revoked": "You withdrew permission for this.",
+  "sensitivity_exceeds_grant": "This is more sensitive than your permission covers.",
+  "restricted_domain": "This kind of data needs its own permission.",
+  "deferred_decision": "Not available yet.",
+  "unknown_source_type": "Atlas does not know this kind of source.",
+  "nothing_requested": ""
+ },
+ "model_roles": {
+  "primary": "main model",
+  "text_fallback": "text backup model",
+  "multimodal_fallback": "image and audio backup model",
+  "deep": "deep research model"
+ },
+ "model_line": "Answered on this Mac by {model_id} ({role}). Nothing left your computer.",
+ "model_line_unknown": "Answered on this Mac. Nothing left your computer.",
+ "coverage_line": "Searched {searched} of {total}.",
+ "coverage_line_unknown_total": "Searched {searched}.",
+ "citation_line": "{source_kind}, {locator}",
+ "no_citations": "No sources are cited.",
+ "locator_kinds": {
+  "page": "page {page}",
+  "block": "paragraph {block}",
+  "message_part": "{message_part} of the message",
+  "span_only": "a passage",
+  "header_field": "the {header} line (as the sender wrote it)",
+  "attachment_part": "an attachment",
+  "sheet_cell": "cell {cell}"
+ },
+ "source_kinds": {
+  "documents": "Document",
+  "mail": "Mail",
+  "mail_attachment": "Attachment"
+ },
+ "actions": {
+  "ask": "Ask",
+  "cancel": "Cancel",
+  "retry": "Try again",
+  "open_source": "Show the source passage"
+ }
+}

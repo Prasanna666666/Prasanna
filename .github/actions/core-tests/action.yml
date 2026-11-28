@@ -1,0 +1,56 @@
+name: Core tests, artefact scan, gated publication and final failure
+description: >
+  The single definition of how the core job runs its tests and publishes their report (MAC-07). The core job uses it for the real suite and the
+  core-failure-paths job uses the same action, unchanged, on an injected failing test and on a log carrying a sentinel, so the hosted proof
+  exercises the production steps themselves rather than a copy.
+inputs:
+  label:
+    description: Suffix for the report files and the published artifact (the Python version in the core job)
+    required: true
+  pytest-args:
+    description: Extra pytest arguments (empty in the core job, which runs the whole suite)
+    default: ""
+  artefacts:
+    description: Folder, relative to the workspace root, that receives the log and the JUnit report (upload-artifact refuses parent-directory segments)
+    default: artefacts
+outputs:
+  status:
+    description: pytest exit status
+    value: ${{ steps.tests.outputs.status }}
+  scan:
+    description: Outcome of the privacy scan (success or failure)
+    value: ${{ steps.scan.outcome }}
+  published:
+    description: Outcome of the upload step (success, or skipped when the scan failed)
+    value: ${{ steps.upload.outcome }}
+runs:
+  using: composite
+  steps:
+    - name: Tests (log and JUnit report saved for the artefact scan)
+      id: tests
+      shell: bash
+      working-directory: core
+      run: |
+        set -o pipefail  # a failing pytest is not hidden by the pipe to the log
+        out="$GITHUB_WORKSPACE/${{ inputs.artefacts }}"
+        mkdir -p "$out"
+        status=0
+        pytest -q --junitxml="$out/junit-${{ inputs.label }}.xml" ${{ inputs.pytest-args }} 2>&1 | tee "$out/pytest-${{ inputs.label }}.log" || status=$?
+        echo "status=$status" >> "$GITHUB_OUTPUT"  # recorded here and enforced by the last step, so the scan and the publication decision still run when tests fail
+    - name: Scan the test artefacts for personal-content sentinels
+      id: scan
+      shell: bash
+      working-directory: core
+      run: python tools/scan_artefacts.py "$GITHUB_WORKSPACE/${{ inputs.artefacts }}"
+    - name: Publish the report
+      id: upload
+      uses: actions/upload-artifact@v4  # runs only when the scan passed (the default success() condition): a log that failed the privacy scan is never published
+      with:
+        name: core-test-artefacts-${{ inputs.label }}
+        path: ${{ github.workspace }}/${{ inputs.artefacts }}
+    - name: Fail the job if the tests failed
+      if: ${{ always() && steps.tests.outputs.status != '' && steps.tests.outputs.status != '0' }}
+      shell: bash
+      run: |
+        echo "pytest exited with status ${{ steps.tests.outputs.status }}" >&2
+        exit 1

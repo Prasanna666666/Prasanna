@@ -1,0 +1,52 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "atlas-core"
+version = "0.1.0"
+description = "Stage 2 foundation of the Atlas Core: a language-neutral API contract, default-deny source policy, durable task state, exact evidence checks and privacy-safe events (reference implementation)"
+requires-python = ">=3.11"
+dependencies = ["cryptography>=42", "jsonschema>=4.20"]
+
+[project.optional-dependencies]
+secure = ["sqlcipher3-binary>=0.5"]
+browser = ["playwright>=1.45"]  # the isolated browser for reading pages the owner allowed
+macos = ["pyobjc-framework-EventKit>=10", "pyobjc-framework-Contacts>=10", "pyobjc-framework-Photos>=10"]  # the real Calendar, Contacts and Photos sources
+dev = ["playwright>=1.45", "pytest>=8", "ruff>=0.5", "mypy>=1.10", "pyyaml>=6", "types-PyYAML", "types-jsonschema", "openapi-spec-validator>=0.7"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+atlas_core = ["*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+markers = ["criterion(n): the Stage 2 acceptance criterion (1 to 16) this test provides evidence for"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "SIM", "RUF", "DTZ", "C4", "C90", "PIE", "PL", "BLE"]
+ignore = ["S101", "S608", "PLC0415", "E501", "RUF001", "RUF002", "RUF003"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-args = 7
+max-positional-args = 7
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S", "DTZ", "PLR", "BLE", "SIM117"]
+"bench/*" = ["S", "DTZ", "PLR", "T20"]
+
+[tool.mypy]
+python_version = "3.11"
+ignore_missing_imports = true
+warn_unused_ignores = true
+check_untyped_defs = true

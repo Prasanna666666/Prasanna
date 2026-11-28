@@ -1,0 +1,2688 @@
+{
+  "$comment": "API 1.1 delta. Merged over the frozen 1.0 definitions BY NAME by contracts.build_1_1: x-overrides replace 1.0 definitions, x-additions are new; nothing else changes. Never edit the 1.0 file.",
+  "x-overrides": [
+    "AnswerEnvelope",
+    "ErrorCode",
+    "Limitation",
+    "Locator",
+    "SafeEvent"
+  ],
+  "x-additions": [
+    "Coverage",
+    "ConsentRequest",
+    "ConsentState",
+    "IndexStatus",
+    "ModelDescriptor",
+    "PassageText",
+    "ComputeRequest",
+    "ComputeResult",
+    "EnrolRequest",
+    "EnrolResponse",
+    "ModeState",
+    "ResearchRequest",
+    "ResearchResult",
+    "ActionRequest",
+    "ActionOutcome",
+    "ApprovalRequest",
+    "ApprovalResult",
+    "UndoRequest",
+    "SyncRequest",
+    "SyncResult",
+    "DeviceOffer",
+    "PairRequest",
+    "PairResult",
+    "DeviceList",
+    "RevokeRequest",
+    "RevokeResult",
+    "LibrarySearchRequest",
+    "LibraryResult",
+    "AttentionList",
+    "RecordList",
+    "FinanceSummary",
+    "HealthSummary",
+    "UpdateStatus",
+    "UpdateInstallRequest",
+    "UpdateResult",
+    "ReviewResult",
+    "ConnectorState",
+    "ConnectorList",
+    "ConnectRequest",
+    "WebHosts",
+    "WebHostRequest",
+    "WebReadRequest"
+  ],
+  "$defs": {
+    "AnswerEnvelope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "answer",
+        "citations",
+        "verification",
+        "language",
+        "limitations",
+        "not_searched",
+        "coverage"
+      ],
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "answer": {
+          "type": "string"
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Citation"
+          }
+        },
+        "verification": {
+          "$ref": "#/$defs/Verification"
+        },
+        "language": {
+          "$ref": "#/$defs/LanguageInfo"
+        },
+        "limitations": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/Limitation"
+          }
+        },
+        "not_searched": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NotSearched"
+          }
+        },
+        "withheld_sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NotSearched"
+          },
+          "description": "Sources whose retrieval is CONFIRMED (content retrieved from them is durably recorded in the task's saved passages) but whose permission was revoked since; the answer built from them is withheld or was never produced. Not the same as not_searched or search_attempted_sources."
+        },
+        "search_attempted_sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/NotSearched"
+          },
+          "description": "Sources whose search was started but for which NO retrieved content is durably recorded: the search may have found nothing, or the process may have stopped before the passages were saved. Nothing from them is represented in any answer; whether anything was found is not established. Not the same as withheld_sources or not_searched."
+        },
+        "coverage": {
+          "$ref": "#/$defs/Coverage"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelDescriptor"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "state": {
+                    "const": "indexing"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "indexing_incomplete"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "indexing_incomplete"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "state": {
+                    "const": "indexing"
+                  }
+                },
+                "required": [
+                  "state"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "pending": {
+                    "contains": {
+                      "properties": {
+                        "category": {
+                          "const": "attachments"
+                        }
+                      },
+                      "required": [
+                        "category"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "attachment_pending"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "attachment_pending"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "pending": {
+                    "contains": {
+                      "properties": {
+                        "category": {
+                          "const": "attachments"
+                        }
+                      },
+                      "required": [
+                        "category"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "pending": {
+                    "contains": {
+                      "properties": {
+                        "category": {
+                          "const": "unsupported_source"
+                        }
+                      },
+                      "required": [
+                        "category"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "source_unsupported"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "source_unsupported"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "pending": {
+                    "contains": {
+                      "properties": {
+                        "category": {
+                          "const": "unsupported_source"
+                        }
+                      },
+                      "required": [
+                        "category"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "pending": {
+                    "contains": {
+                      "properties": {
+                        "category": {
+                          "const": "os_access"
+                        }
+                      },
+                      "required": [
+                        "category"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "os_access_missing"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "os_access_missing"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "pending": {
+                    "contains": {
+                      "properties": {
+                        "category": {
+                          "const": "os_access"
+                        }
+                      },
+                      "required": [
+                        "category"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "pending"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "coverage": {
+                "properties": {
+                  "failed": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "failed"
+                ]
+              }
+            },
+            "required": [
+              "coverage"
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "partial_work"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          }
+        },
+        {
+          "if": {
+            "allOf": [
+              {
+                "properties": {
+                  "coverage": {
+                    "properties": {
+                      "state": {
+                        "const": "partial"
+                      }
+                    },
+                    "required": [
+                      "state"
+                    ]
+                  }
+                },
+                "required": [
+                  "coverage"
+                ]
+              },
+              {
+                "properties": {
+                  "coverage": {
+                    "properties": {
+                      "pending": {
+                        "contains": {
+                          "properties": {
+                            "category": {
+                              "const": "not_yet_indexed"
+                            }
+                          },
+                          "required": [
+                            "category"
+                          ]
+                        }
+                      }
+                    },
+                    "required": [
+                      "pending"
+                    ]
+                  }
+                },
+                "required": [
+                  "coverage"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "partial_work"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          }
+        }
+      ]
+    },
+    "ConsentRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sources"
+      ],
+      "properties": {
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/SourceType"
+          }
+        }
+      },
+      "description": "The single Get Started consent: which source types the owner enables. Shape only in WP3.1."
+    },
+    "ConsentState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "grants",
+        "sources"
+      ],
+      "properties": {
+        "grants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SourceGrant"
+          }
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_type",
+              "os_access"
+            ],
+            "properties": {
+              "source_type": {
+                "$ref": "#/$defs/SourceType"
+              },
+              "os_access": {
+                "type": "string",
+                "enum": [
+                  "granted",
+                  "missing",
+                  "unknown"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "description": "Shape only in WP3.1."
+    },
+    "Coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "searched",
+        "total",
+        "pending",
+        "failed",
+        "as_of"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "complete",
+            "partial",
+            "indexing"
+          ]
+        },
+        "searched": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "pending": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "category",
+              "count"
+            ],
+            "properties": {
+              "category": {
+                "type": "string",
+                "enum": [
+                  "not_yet_indexed",
+                  "attachments",
+                  "unsupported_source",
+                  "os_access"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "failed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "reason_code",
+              "count"
+            ],
+            "properties": {
+              "reason_code": {
+                "type": "string",
+                "enum": [
+                  "unsupported_format",
+                  "encrypted",
+                  "corrupt",
+                  "too_large",
+                  "limit_exceeded",
+                  "extraction_failed",
+                  "timeout"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        "as_of": {
+          "$ref": "#/$defs/Timestamp"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "complete"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "pending": {
+                "maxItems": 0
+              },
+              "failed": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "partial"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "pending": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "pending"
+                ]
+              },
+              {
+                "properties": {
+                  "failed": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "failed"
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    "ErrorCode": {
+      "type": "string",
+      "enum": [
+        "invalid_request",
+        "unsupported_version",
+        "unauthenticated",
+        "forbidden",
+        "not_found",
+        "conflict",
+        "source_denied",
+        "task_cancelled",
+        "task_expired",
+        "task_failed",
+        "needs_attention",
+        "model_unavailable",
+        "citation_failed",
+        "timeout",
+        "internal_error",
+        "os_access_missing",
+        "index_unavailable"
+      ]
+    },
+    "IndexStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "indexed",
+        "total",
+        "newest_indexed",
+        "failed"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "idle",
+            "building",
+            "rebuilding",
+            "needs_attention"
+          ]
+        },
+        "indexed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "total": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "newest_indexed": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/Timestamp"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "failed": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "reason_code",
+              "count"
+            ],
+            "properties": {
+              "reason_code": {
+                "type": "string",
+                "enum": [
+                  "unsupported_format",
+                  "encrypted",
+                  "corrupt",
+                  "too_large",
+                  "limit_exceeded",
+                  "extraction_failed",
+                  "timeout"
+                ]
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        }
+      },
+      "description": "Counts only. Specification-only in WP3.1: no route serves it."
+    },
+    "Limitation": {
+      "type": "string",
+      "enum": [
+        "attachments_not_searched",
+        "source_type_not_searched",
+        "language_unmeasured",
+        "language_unsupported",
+        "low_confidence",
+        "figures_unproven",
+        "dates_unproven",
+        "context_truncated",
+        "partial_work",
+        "answer_withheld",
+        "task_stopped_no_answer",
+        "sensitive_items_excluded",
+        "indexing_incomplete",
+        "source_unsupported",
+        "os_access_missing",
+        "attachment_pending"
+      ]
+    },
+    "Locator": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "page",
+                "block",
+                "message_part",
+                "span_only"
+              ]
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "block": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "message_part": {
+              "type": "string",
+              "enum": [
+                "body",
+                "headers",
+                "thread"
+              ]
+            },
+            "quoted": {
+              "type": "boolean"
+            }
+          },
+          "if": {
+            "not": {
+              "properties": {
+                "kind": {
+                  "const": "message_part"
+                }
+              },
+              "required": [
+                "kind"
+              ]
+            }
+          },
+          "then": {
+            "not": {
+              "required": [
+                "quoted"
+              ]
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "header",
+            "authenticity"
+          ],
+          "properties": {
+            "kind": {
+              "const": "header_field"
+            },
+            "header": {
+              "type": "string",
+              "enum": [
+                "from",
+                "to",
+                "date",
+                "subject",
+                "message_id"
+              ]
+            },
+            "authenticity": {
+              "const": "claimed"
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "attachment_id"
+          ],
+          "properties": {
+            "kind": {
+              "const": "attachment_part"
+            },
+            "attachment_id": {
+              "$ref": "#/$defs/Opaque"
+            },
+            "page": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "block": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "sheet",
+            "cell"
+          ],
+          "properties": {
+            "kind": {
+              "const": "sheet_cell"
+            },
+            "sheet": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Index of the sheet, never its name (names are content of the owner)."
+            },
+            "cell": {
+              "type": "string",
+              "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}$"
+            }
+          }
+        }
+      ]
+    },
+    "ModelDescriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id",
+        "role",
+        "runtime"
+      ],
+      "properties": {
+        "model_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{1,31}$"
+        },
+        "runtime": {
+          "type": "string",
+          "enum": [
+            "mlx",
+            "stub"
+          ]
+        }
+      },
+      "description": "Which local model produced the answer. Closed and content-free: never a prompt, source text, path, query or personal data."
+    },
+    "SafeEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event",
+        "component",
+        "correlation_id"
+      ],
+      "properties": {
+        "event": {
+          "type": "string",
+          "enum": [
+            "api.request",
+            "client.rejected",
+            "task.created",
+            "task.transition",
+            "task.recovered",
+            "policy.decision",
+            "retrieval.finished",
+            "model.requested",
+            "answer.verified",
+            "stream.opened",
+            "consent.changed",
+            "model.routed",
+            "egress.decision"
+          ]
+        },
+        "component": {
+          "type": "string",
+          "enum": [
+            "api",
+            "identity",
+            "service",
+            "policy",
+            "gate",
+            "tasks",
+            "answer",
+            "stream",
+            "consent",
+            "model",
+            "egress"
+          ]
+        },
+        "correlation_id": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "state_from": {
+          "$ref": "#/$defs/TaskState"
+        },
+        "state_to": {
+          "$ref": "#/$defs/TaskState"
+        },
+        "decision": {
+          "type": "string",
+          "enum": [
+            "allow",
+            "deny"
+          ]
+        },
+        "reason_code": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "nothing_requested",
+            "unknown_source_type",
+            "restricted_domain",
+            "deferred_decision",
+            "no_grant",
+            "grant_revoked",
+            "grant_expired",
+            "sensitivity_exceeds_grant",
+            "requeued",
+            "needs_attention",
+            "verified",
+            "partially_verified",
+            "unverified",
+            "failed",
+            "allowed",
+            "not_a_typed_tool",
+            "leak_check",
+            "url_not_permitted",
+            "private_address",
+            "redirect_blocked",
+            "length_cap",
+            "header_not_allowed",
+            "host_not_allowed",
+            "provider_disabled",
+            "budget_exceeded",
+            "primary_model",
+            "deep_model",
+            "fallback_model",
+            "memory_fallback",
+            "model_refused"
+          ],
+          "description": "A closed vocabulary: the policy decisions, recovery actions and verification statuses the Stage 2 Core emits, plus the egress decisions defined by the network policy. A new reason is a contract change, never a free-form string."
+        },
+        "error_code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599
+        },
+        "count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "duration_ms": {
+          "type": "number",
+          "minimum": 0
+        },
+        "action": {
+          "type": "string",
+          "enum": [
+            "granted",
+            "revoked"
+          ]
+        },
+        "source_type": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "role": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{1,31}$"
+        },
+        "model_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9._:-]{1,64}$"
+        },
+        "destination_class": {
+          "type": "string",
+          "enum": [
+            "search_provider",
+            "connector",
+            "update_manifest",
+            "model_manifest"
+          ]
+        }
+      }
+    },
+    "PassageText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "citation_index",
+        "text",
+        "evidence"
+      ],
+      "properties": {
+        "citation_index": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "text": {
+          "type": "string"
+        },
+        "evidence": {
+          "$ref": "#/$defs/EvidenceRef"
+        }
+      },
+      "description": "The text of one cited span, for the owner to inspect a citation. Served only while every source the answer used is still permitted and the span still resolves exactly; otherwise the call fails closed. Never logged."
+    },
+    "ComputeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "args"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "arithmetic",
+            "convert",
+            "days_between",
+            "add_days",
+            "add_months",
+            "weekday"
+          ]
+        },
+        "args": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 3,
+          "items": {
+            "type": "string",
+            "pattern": "^[^\\u0000-\\u001f]{1,200}$"
+          }
+        }
+      },
+      "description": "A typed, deterministic computation done by code, never by a model: arithmetic [expression], convert [value, from, to], days_between [start, end], add_days [start, days], add_months [start, months], weekday [date]. Dates are ISO calendar dates. No source is read and nothing is logged."
+    },
+    "ComputeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "value",
+        "exact",
+        "approximate",
+        "clamped"
+      ],
+      "properties": {
+        "kind": {
+          "type": "string",
+          "enum": [
+            "arithmetic",
+            "convert",
+            "days_between",
+            "add_days",
+            "add_months",
+            "weekday"
+          ]
+        },
+        "value": {
+          "type": "string",
+          "pattern": "^[-0-9a-z./]{1,500}$"
+        },
+        "exact": {
+          "type": "boolean"
+        },
+        "approximate": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^-?[0-9.]{1,100}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "A labelled rounded form, present only when the exact value has no finite decimal form (for example 1/3)."
+        },
+        "clamped": {
+          "type": "boolean",
+          "description": "True when month arithmetic had to move to the last day of the month."
+        }
+      },
+      "description": "The result. `exact` is true when `value` is a finite decimal, an integer, a date or a weekday; false when it is a fraction (numerator/denominator) with no finite decimal form, in which case `approximate` is a labelled rounded decimal. `value` is a decimal, a fraction (numerator/denominator), an ISO date, an integer or a weekday name."
+    },
+    "EnrolRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "public_key",
+        "role"
+      ],
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$",
+          "description": "The client's Ed25519 public key, 32 raw bytes in base64."
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "member"
+          ]
+        },
+        "bootstrap_code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{16,64}$",
+          "description": "The single-use first-run code, known only to the process that started the Core and handed to the app over that private channel. Required for the first owner when the Core was started with one (the normal case); never logged."
+        }
+      },
+      "description": "Enrol a client. First run: while NO owner client is enrolled, an unsigned request over the owner-only socket may enrol the first OWNER client, once. After that only a signed request from an enrolled owner client may enrol a client (role member). Public keys only; never a secret."
+    },
+    "EnrolResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "client_id",
+        "role"
+      ],
+      "properties": {
+        "client_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "role": {
+          "type": "string",
+          "enum": [
+            "owner",
+            "member"
+          ]
+        }
+      }
+    },
+    "ModeState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode"
+      ],
+      "properties": {
+        "mode": {
+          "type": "string",
+          "enum": [
+            "default",
+            "research"
+          ]
+        }
+      },
+      "description": "The owner's selected model mode. `research` allows the deep model tier (the primary is unloaded first); it is chosen only by the owner, never inferred from a question, and resets to `default` when the Core starts."
+    },
+    "ResearchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "task_id",
+        "query"
+      ],
+      "properties": {
+        "task_id": {
+          "$ref": "#/$defs/Opaque"
+        },
+        "query": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,256}$"
+        }
+      },
+      "description": "A public web search made on behalf of one task. Served only when the Core's explicit live-network gate is on (off by default); refused when the query repeats anything private from the task's context (its question and retrieved passages) or when the task's context holds Finance or Health data. The query is never logged."
+    },
+    "ResearchResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url",
+        "domain",
+        "retrieved_at",
+        "content_hash",
+        "text",
+        "truncated",
+        "injection_flags",
+        "trust",
+        "authority"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://[^\\s\\u0000-\\u001f]{1,2040}$"
+        },
+        "domain": {
+          "type": "string",
+          "pattern": "^[a-z0-9.-]{1,255}$"
+        },
+        "retrieved_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "content_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "text": {
+          "type": "string",
+          "maxLength": 200000
+        },
+        "truncated": {
+          "type": "boolean"
+        },
+        "injection_flags": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "string",
+            "enum": [
+              "instruction_like_text"
+            ]
+          }
+        },
+        "trust": {
+          "type": "string",
+          "enum": [
+            "untrusted"
+          ]
+        },
+        "authority": {
+          "type": "string",
+          "enum": [
+            "none"
+          ]
+        }
+      },
+      "description": "Public web content returned as UNTRUSTED DATA with its provenance. It carries no authority: it cannot add a tool, a source, a grant or an action, it is not evidence for a citation, and instruction-like text in it is flagged, never obeyed."
+    },
+    "ActionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action",
+        "payload",
+        "idempotency_key"
+      ],
+      "properties": {
+        "action": {
+          "type": "string",
+          "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
+        },
+        "payload": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "Owner-supplied action content. This field is accepted only through the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
+        },
+        "idempotency_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "approval_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "Propose one typed action as the owner. It runs at once if it needs no approval (everything outside PRD 4.4's four categories), otherwise it answers `needs_approval` with the exact payload and an approval id; the owner approves that id and proposes the SAME action and payload again with it. Owner client only."
+    },
+    "ActionOutcome": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "code"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "done",
+            "needs_approval",
+            "refused",
+            "failed"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "pattern": "^[a-z_0-9]{0,40}$"
+        },
+        "action_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "result": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "Provider-returned action result content. This field is returned only to the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "approval_id": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{16}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "category": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 4
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exact_payload": {
+          "oneOf": [
+            {
+              "type": "object",
+              "additionalProperties": true,
+              "description": "The exact owner-supplied payload shown for approval. This field is returned only to the enrolled owner client, is treated as untrusted data, and is never written to logs or audit records; action audit records contain hashes only."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "description": "What happened to a proposed action, with a code and never the text of an error."
+    },
+    "ApprovalRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "approval_id"
+      ],
+      "properties": {
+        "approval_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "The owner approves one pending approval id. Single-use, bound to the exact payload it was asked for, expires. Owner client only."
+    },
+    "ApprovalResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "granted"
+      ],
+      "properties": {
+        "granted": {
+          "type": "boolean"
+        }
+      }
+    },
+    "UndoRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "action_id"
+      ],
+      "properties": {
+        "action_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$"
+        }
+      },
+      "description": "Undo one completed reversible action. Owner client only."
+    },
+    "SyncRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ops"
+      ],
+      "properties": {
+        "ops": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "name",
+              "payload"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z_]{1,30}\\.[a-z][a-z_]{1,30}$"
+              },
+              "payload": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Authenticated client-supplied sync operation content. It is accepted only for the enrolled client whose signed identity is bound to the request; the Core applies the operation allowlist and domain policy, and never writes the content to logs or audit records."
+              }
+            }
+          }
+        }
+      },
+      "description": "A device's offline queue, in order. Each operation is applied once; a stale version is a conflict that never overwrites; the device is the authenticated client."
+    },
+    "SyncResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "results"
+      ],
+      "properties": {
+        "results": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "op_id",
+              "status",
+              "code",
+              "current_version"
+            ],
+            "properties": {
+              "op_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "applied",
+                  "duplicate",
+                  "conflict",
+                  "rejected"
+                ]
+              },
+              "code": {
+                "type": "string",
+                "pattern": "^[a-z_0-9]{0,40}$"
+              },
+              "current_version": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "DeviceOffer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "core_fingerprint",
+        "expires_at"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "core_fingerprint": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+      "description": "A pairing offer: a single-use code that lives five minutes, and the fingerprint of the Core's identity key for the device to pin. Opened by an owner client; the code is shown once (for example as a QR code on the Mac) and never stored."
+    },
+    "PairRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "device_id",
+        "label",
+        "public_key",
+        "nonce"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "device_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        },
+        "label": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+        },
+        "public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "nonce": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        }
+      },
+      "description": "A device presents the code and its public key (unsigned: it is not enrolled yet). Every refusal is the same code, so a guess learns nothing."
+    },
+    "PairResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "core_public_key",
+        "proof"
+      ],
+      "properties": {
+        "core_public_key": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{43}=$"
+        },
+        "proof": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]{86}==$"
+        }
+      },
+      "description": "The Core's public key and its signature over the device's key and nonce, for the device to check against the pinned fingerprint."
+    },
+    "DeviceList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "devices"
+      ],
+      "properties": {
+        "devices": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "device_id",
+              "label",
+              "paired_at",
+              "revoked_at"
+            ],
+            "properties": {
+              "device_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$"
+              },
+              "label": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,60}$"
+              },
+              "paired_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "revoked_at": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "format": "date-time"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "RevokeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "device_id"
+      ],
+      "properties": {
+        "device_id": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{8,64}$"
+        }
+      },
+      "description": "The owner revokes a device: immediate, durable and total. The last owner client cannot be revoked."
+    },
+    "RevokeResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revoked"
+      ],
+      "properties": {
+        "revoked": {
+          "type": "boolean"
+        }
+      }
+    },
+    "LibrarySearchRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "query",
+        "scope"
+      ],
+      "properties": {
+        "query": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,200}$"
+        },
+        "scope": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{2,32}$"
+          }
+        }
+      },
+      "description": "Search what the owner has enabled, through the same policy and retrieval path a question uses. Nothing outside a current grant is searched."
+    },
+    "LibraryResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "results",
+        "coverage"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "results",
+            "no_results",
+            "denied",
+            "partial",
+            "partial_no_results"
+          ]
+        },
+        "results": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_id",
+              "source_type",
+              "title",
+              "excerpt",
+              "locator_kind"
+            ],
+            "properties": {
+              "source_id": {
+                "$ref": "#/$defs/Opaque"
+              },
+              "source_type": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,32}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,120}$"
+              },
+              "excerpt": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,300}$"
+              },
+              "locator_kind": {
+                "type": "string",
+                "pattern": "^[a-z_]{1,32}$"
+              }
+            }
+          }
+        },
+        "coverage": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "source_type",
+              "total",
+              "searched",
+              "complete"
+            ],
+            "properties": {
+              "source_type": {
+                "type": "string",
+                "pattern": "^[a-z_]{2,32}$"
+              },
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "searched": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "complete": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "description": "What a Library search found, and how much of each source has been read so far: an incomplete index is never presented as a complete search."
+    },
+    "AttentionList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "items"
+      ],
+      "properties": {
+        "items": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "record_id",
+              "title",
+              "priority",
+              "key"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "calendar_conflict"
+                ]
+              },
+              "record_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]{1,120}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,200}$"
+              },
+              "priority": {
+                "type": "string",
+                "enum": [
+                  "normal",
+                  "urgent"
+                ]
+              },
+              "key": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._:-]{1,300}$"
+              }
+            }
+          }
+        }
+      },
+      "description": "What needs the owner's attention, computed by code from the owner's own records (today: overlapping calendar events). Owner client only; a push to another device carries only a kind and an id."
+    },
+    "RecordList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "records"
+      ],
+      "properties": {
+        "records": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "title",
+              "date",
+              "version",
+              "fields"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9._-]{1,120}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{0,500}$"
+              },
+              "date": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,64}$"
+              },
+              "version": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "fields": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "The owner's structured record content. This field is returned only to the owner or an enrolled paired member client for the fixed readable domains; it is treated as untrusted data and never written to logs or audit records."
+              }
+            }
+          }
+        }
+      },
+      "description": "The owner's own records of one domain (Calendar, Contacts or Notes), newest first, with the version each edit must name. Owner client only."
+    },
+    "FinanceSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "currency",
+        "transaction_count",
+        "months",
+        "latest",
+        "computed_by_code"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "empty",
+            "denied"
+          ]
+        },
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$"
+        },
+        "transaction_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "months": {
+          "type": "array",
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "month",
+              "total"
+            ],
+            "properties": {
+              "month": {
+                "type": "string",
+                "pattern": "^[0-9]{4}-[0-9]{2}$"
+              },
+              "total": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+              }
+            }
+          }
+        },
+        "latest": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "month",
+                "total",
+                "categories",
+                "previous_total",
+                "delta",
+                "percent"
+              ],
+              "properties": {
+                "month": {
+                  "type": "string",
+                  "pattern": "^[0-9]{4}-[0-9]{2}$"
+                },
+                "total": {
+                  "type": "string",
+                  "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                },
+                "categories": {
+                  "type": "array",
+                  "maxItems": 50,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "category",
+                      "total"
+                    ],
+                    "properties": {
+                      "category": {
+                        "type": "string",
+                        "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+                      },
+                      "total": {
+                        "type": "string",
+                        "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                      }
+                    }
+                  }
+                },
+                "previous_total": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "delta": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "percent": {
+                  "oneOf": [
+                    {
+                      "type": "string",
+                      "pattern": "^-?[0-9]{1,7}\\.[0-9]$"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The change against the previous month as a percentage rounded half-up to one place. It is rounded, not exact, and absent when there is no previous month or it was zero."
+                }
+              }
+            }
+          ]
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "Spending by month and category, computed by code from the owner's Finance records (never by a model), each total the exact sum of the transactions it names. Served only under a current grant for exactly the Finance domain; otherwise `denied`. Owner client only."
+    },
+    "HealthSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "reading_count",
+        "measures",
+        "computed_by_code"
+      ],
+      "properties": {
+        "state": {
+          "type": "string",
+          "enum": [
+            "ready",
+            "empty",
+            "denied"
+          ]
+        },
+        "reading_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "measures": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "measure",
+              "unit",
+              "count",
+              "latest",
+              "minimum",
+              "maximum",
+              "average",
+              "average_is_rounded",
+              "bases"
+            ],
+            "properties": {
+              "measure": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,60}$"
+              },
+              "unit": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,30}$"
+              },
+              "count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "latest": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "date",
+                  "value",
+                  "basis"
+                ],
+                "properties": {
+                  "date": {
+                    "type": "string",
+                    "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
+                  },
+                  "value": {
+                    "type": "string",
+                    "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+                  },
+                  "basis": {
+                    "type": "string",
+                    "enum": [
+                      "measured",
+                      "estimated",
+                      "unlabelled"
+                    ]
+                  }
+                }
+              },
+              "minimum": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+              },
+              "maximum": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}(\\.[0-9]{1,12})?$"
+              },
+              "average": {
+                "type": "string",
+                "pattern": "^-?[0-9]{1,12}\\.[0-9]{2}$",
+                "description": "The mean rounded half-up to two places. It is rounded, not exact."
+              },
+              "average_is_rounded": {
+                "type": "boolean"
+              },
+              "bases": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "measured",
+                  "estimated",
+                  "unlabelled"
+                ],
+                "properties": {
+                  "measured": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "estimated": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "unlabelled": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "Health readings summarised by code from the owner's Health records (never by a model): per measure and unit the exact latest, minimum and maximum, a rounded average, and how many readings were measured, estimated or unlabelled. Served only under a current grant for exactly the Health domain; otherwise `denied`. Owner client only. It gives no medical advice."
+    },
+    "UpdateStatus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "can_roll_back"
+      ],
+      "properties": {
+        "installed": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "can_roll_back": {
+          "type": "boolean"
+        }
+      },
+      "description": "The installed app version (null when no managed install is current) and whether the previous version is still on disk. Owner client only; present only when the Core manages its own install."
+    },
+    "UpdateInstallRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "folder"
+      ],
+      "properties": {
+        "folder": {
+          "type": "string",
+          "pattern": "^/[^\\u0000-\\u001f]{1,1000}$"
+        }
+      },
+      "description": "The folder the owner chose; it must hold manifest.json, manifest.sig and artefact.zip. Nothing else is read."
+    },
+    "UpdateResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "installed",
+        "restart_needed"
+      ],
+      "properties": {
+        "installed": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9]{1,4}\\.[0-9]{1,4}\\.[0-9]{1,6}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "restart_needed": {
+          "type": "boolean"
+        },
+        "refused": {
+          "type": "string",
+          "enum": [
+            "bad_version",
+            "bad_signature",
+            "bad_manifest",
+            "bad_artefact",
+            "unsafe_artefact",
+            "artefact_does_not_match_manifest",
+            "not_newer",
+            "version_already_on_disk",
+            "unhealthy_rolled_back",
+            "unhealthy_first_install",
+            "nothing_to_roll_back_to",
+            "bad_release_folder"
+          ]
+        }
+      },
+      "description": "The outcome of installing a signed release or rolling back. A refusal carries its reason and changes nothing; the owner's data is never touched."
+    },
+    "ReviewResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "tasks",
+        "sections",
+        "computed_by_code"
+      ],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "completed",
+            "partially_completed",
+            "failed",
+            "cancelled",
+            "expired"
+          ]
+        },
+        "tasks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "task",
+              "state"
+            ],
+            "properties": {
+              "task": {
+                "type": "string",
+                "enum": [
+                  "calendar",
+                  "finance",
+                  "health",
+                  "highlights",
+                  "compose"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "queued",
+                  "running",
+                  "completed",
+                  "failed",
+                  "cancelled",
+                  "expired",
+                  "skipped"
+                ]
+              }
+            }
+          }
+        },
+        "sections": {
+          "type": "array",
+          "maxItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "area",
+              "state",
+              "summary"
+            ],
+            "properties": {
+              "area": {
+                "type": "string",
+                "enum": [
+                  "calendar",
+                  "finance",
+                  "health",
+                  "highlights"
+                ]
+              },
+              "state": {
+                "type": "string",
+                "enum": [
+                  "ready",
+                  "empty",
+                  "denied",
+                  "unavailable"
+                ]
+              },
+              "summary": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,400}$"
+              },
+              "task_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{8,64}$",
+                "description": "For the highlights section: the task whose verified, cited answer is fetched like any other answer."
+              }
+            }
+          }
+        },
+        "computed_by_code": {
+          "type": "boolean"
+        }
+      },
+      "description": "The owner's review: the orchestrator run over fixed code agents (not models) for the calendar, Finance and Health. Each section answers only under its own grant and says when it is off, empty or not offered; every figure is the one the Core computed by code. Owner client only."
+    },
+    "ConnectorState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "title",
+        "category",
+        "summary",
+        "state",
+        "problem",
+        "read_scopes",
+        "writes",
+        "offline",
+        "retention",
+        "failure",
+        "fields"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,30}$"
+        },
+        "title": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,80}$"
+        },
+        "category": {
+          "type": "string",
+          "pattern": "^[a-z_]{3,30}$"
+        },
+        "summary": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,400}$"
+        },
+        "state": {
+          "type": "string",
+          "enum": [
+            "not_connected",
+            "connected",
+            "needs_attention"
+          ]
+        },
+        "problem": {
+          "oneOf": [
+            {
+              "type": "string",
+              "enum": [
+                "unauthorised",
+                "unreachable",
+                "unverified"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "read_scopes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z_]{3,40}$"
+          }
+        },
+        "writes": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "title",
+              "approval"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z_]{3,40}$"
+              },
+              "title": {
+                "type": "string",
+                "pattern": "^[^\\u0000-\\u001f]{1,120}$"
+              },
+              "approval": {
+                "type": "string",
+                "enum": [
+                  "never",
+                  "always"
+                ],
+                "description": "`always`: the owner approves each one (the closed list in PRD 4.4). `never`: prompt-free and undoable."
+              }
+            }
+          }
+        },
+        "offline": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "retention": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "failure": {
+          "type": "string",
+          "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+        },
+        "fields": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "secret"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z_]{3,30}$"
+              },
+              "secret": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      },
+      "description": "One connector as the owner sees it: what it can read, what it can change and whether each change asks the owner, how it behaves offline, what is kept and how a failure is reported. Credentials are never part of it."
+    },
+    "ConnectorList": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "connectors"
+      ],
+      "properties": {
+        "connectors": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/ConnectorState"
+          }
+        }
+      },
+      "description": "Every integration Atlas knows, connected or not. Owner client only."
+    },
+    "ConnectRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fields"
+      ],
+      "properties": {
+        "fields": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "address": {
+              "type": "string",
+              "pattern": "^https?://[^\\u0000-\\u0020]{1,300}$"
+            },
+            "token": {
+              "type": "string",
+              "pattern": "^[^\\u0000-\\u001f]{1,500}$"
+            }
+          },
+          "required": [
+            "address",
+            "token"
+          ]
+        }
+      },
+      "description": "The owner connects an integration with the address of the service and an access token. The token is stored in the secret store and is never returned, logged or audited."
+    },
+    "WebHosts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hosts"
+      ],
+      "properties": {
+        "hosts": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"
+          }
+        }
+      },
+      "description": "The hosts the owner allows Atlas to open in its isolated browser. Owner client only."
+    },
+    "WebHostRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "host"
+      ],
+      "properties": {
+        "host": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$"
+        }
+      },
+      "description": "Add or remove one allowed host. A name that does not exist or points inside the owner's network is refused."
+    },
+    "WebReadRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "url"
+      ],
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://[^\\s\\u0000-\\u001f]{1,2040}$"
+        }
+      },
+      "description": "Read one page, over https, on a host the owner allowed. The answer is a ResearchResult: untrusted text with its provenance."
+    }
+  }
+}

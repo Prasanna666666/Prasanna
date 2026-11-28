@@ -1,0 +1,102 @@
+openapi: 3.1.0
+info:
+  title: Atlas Core API
+  version: "1.0"
+  summary: The versioned boundary between the Atlas applications (macOS now, iOS later) and the Mac-host Atlas Core.
+  description: |
+    Language-neutral source of truth, with atlas-contracts.schema.json. A client is never trusted: the Core enforces
+    the source policy before retrieval and before any model context is built. Every request is signed by a per-client key
+    (no localhost or Origin trust). Remote iOS connectivity is NOT specified here (G-O14); the same signed-request scheme is
+    the seam a remote transport would reuse.
+servers:
+  - url: unix:///run/atlas/core.sock
+    description: Local transport (Unix domain socket, owner-only, peer-credential checked).
+security:
+  - SignedRequest: []
+paths:
+  /v1/version:
+    get:
+      operationId: getVersion
+      summary: Version negotiation. The only call that does not need a supported X-Atlas-Api-Version.
+      responses:
+        "200": {description: Versions this Core speaks, content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/ApiVersion"}}}}
+        "401": {$ref: "#/components/responses/Error"}
+  /v1/tasks:
+    post:
+      operationId: createTask
+      summary: Create a task (idempotent on idempotency_key). The source policy is evaluated before anything is retrieved.
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/TaskRequest"}}}
+      responses:
+        "201": {description: Task created, content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/TaskRecord"}}}}
+        "200": {description: Same idempotency key and same request returned the existing task, content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/TaskRecord"}}}}
+        "400": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+        "403": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "426": {$ref: "#/components/responses/Error"}
+  /v1/tasks/{task_id}:
+    get:
+      operationId: getTask
+      parameters: [{$ref: "#/components/parameters/TaskId"}]
+      responses:
+        "200": {description: The task, content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/TaskRecord"}}}}
+        "404": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+  /v1/tasks/{task_id}/cancel:
+    post:
+      operationId: cancelTask
+      summary: Request cancellation. Honoured at the next step boundary; always safe to repeat.
+      parameters: [{$ref: "#/components/parameters/TaskId"}]
+      responses:
+        "200": {description: The task after the request, content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/TaskRecord"}}}}
+        "404": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+  /v1/tasks/{task_id}/answer:
+    get:
+      operationId: getAnswer
+      summary: The answer envelope of a finished task.
+      parameters: [{$ref: "#/components/parameters/TaskId"}]
+      responses:
+        "200": {description: The answer, content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/AnswerEnvelope"}}}}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+  /v1/tasks/{task_id}/receipt:
+    get:
+      operationId: getReceipt
+      summary: The execution receipt of a finished task (audit envelope only; this slice has no actions).
+      parameters: [{$ref: "#/components/parameters/TaskId"}]
+      responses:
+        "200": {description: The receipt, content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/ExecutionReceipt"}}}}
+        "404": {$ref: "#/components/responses/Error"}
+        "409": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+  /v1/tasks/{task_id}/events:
+    get:
+      operationId: streamEvents
+      summary: Progress and state as Server-Sent Events; each data line is one StreamEvent. Resume with ?after=<seq>.
+      parameters:
+        - {$ref: "#/components/parameters/TaskId"}
+        - {name: after, in: query, required: false, schema: {type: integer, minimum: 0}}
+      responses:
+        "200": {description: Event stream, content: {text/event-stream: {schema: {type: string, description: "Lines 'id: <seq>' and 'data: <StreamEvent JSON>'"}}}}
+        "404": {$ref: "#/components/responses/Error"}
+        "401": {$ref: "#/components/responses/Error"}
+components:
+  securitySchemes:
+    SignedRequest:
+      type: apiKey
+      in: header
+      name: X-Atlas-Signature
+      description: |
+        Ed25519 signature, base64, over: METHOD, PATH (with query), X-Atlas-Timestamp, X-Atlas-Nonce and the SHA-256 hex of the body,
+        joined by newlines. Also required: X-Atlas-Client (registered client id), X-Atlas-Timestamp (seconds), X-Atlas-Nonce (single use).
+        A missing, invalid, replayed, stale or revoked identity is refused. The optional X-Atlas-Api-Version selects the contract version.
+  parameters:
+    TaskId: {name: task_id, in: path, required: true, schema: {$ref: "./atlas-contracts.schema.json#/$defs/Opaque"}}
+  responses:
+    Error:
+      description: A user-safe error (never internals).
+      content: {application/json: {schema: {$ref: "./atlas-contracts.schema.json#/$defs/UserSafeError"}}}

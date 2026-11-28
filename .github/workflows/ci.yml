@@ -105,6 +105,226 @@ jobs:
       - run: pytest -q
       - run: npx --yes eslint@10.1.0 src/atlas/static
       - run: npx --yes prettier@3.8.1 --check src/atlas/static
+  core:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    strategy:
+      matrix:
+        python: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - run: pip install -e "../kit[secure]" -e ".[dev]"
+      - run: ruff check .
+      - run: ruff format --check .
+      - run: mypy src
+      - name: Install the browser the engine drives (Playwright Chromium)
+        run: python -m playwright install --with-deps chromium
+      - name: Tests, artefact scan, gated publication and final failure (the shared steps core-failure-paths also runs)
+        uses: ./.github/actions/core-tests
+        with:
+          label: ${{ matrix.python }}
+  core-failure-paths:
+    # MAC-07: runs the core job's own steps (the shared action .github/actions/core-tests, used unchanged) on two injected cases and asserts
+    # on a hosted runner that (A) a failing test fails those steps while its log and JUnit report are still published and can be downloaded,
+    # and (B) a log carrying a personal-content sentinel is rejected by the scan, is not published (the artifact does not exist) and fails the
+    # steps even though every test passed. This job is green only when both gates behave.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e "kit[secure]" -e "core[dev]"
+      - name: Inject the two cases (synthetic sentinel from the redaction tests)
+        working-directory: core
+        run: |
+          mkdir -p ../case-a ../case-b
+          printf 'def test_injected_failure():\n    assert False, "injected by core-failure-paths"\n' > ../case-a/test_injected.py
+          python -c "import sys; sys.path.insert(0, 'tests'); from conftest import ALL_SENTINELS; open('../case-b/test_seeded.py', 'w').write('def test_passes_and_prints():\n    print(%r)\n' % ALL_SENTINELS[0])"
+      - name: "Case A: a failing test through the shared steps"
+        id: a
+        continue-on-error: true
+        uses: ./.github/actions/core-tests
+        with:
+          label: failpath-a
+          artefacts: failpath-a
+          pytest-args: -p no:cacheprovider --rootdir ../case-a ../case-a
+      - name: "Case B: a passing test whose log carries a sentinel, through the shared steps"
+        id: b
+        continue-on-error: true
+        uses: ./.github/actions/core-tests
+        with:
+          label: failpath-b
+          artefacts: failpath-b
+          pytest-args: -p no:cacheprovider -rA --rootdir ../case-b ../case-b
+      - name: "Case A published report, read back from this run"
+        id: fetch-a
+        uses: actions/download-artifact@v4
+        with:
+          name: core-test-artefacts-failpath-a
+          path: fetched-a
+      - name: "Case B artifact, which must not exist"
+        id: fetch-b
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: core-test-artefacts-failpath-b
+          path: fetched-b
+      - name: Both gates behaved
+        shell: bash
+        run: |
+          set -x
+          # A: the steps failed, the status was recorded, the scan passed, the report was published and the published copy shows the failure
+          test "${{ steps.a.outcome }}" = "failure"
+          test "${{ steps.a.outputs.status }}" != "0" && test -n "${{ steps.a.outputs.status }}"
+          test "${{ steps.a.outputs.scan }}" = "success"
+          test "${{ steps.a.outputs.published }}" = "success"
+          grep -q 'failures="1"' fetched-a/junit-failpath-a.xml
+          grep -q "injected by core-failure-paths" fetched-a/pytest-failpath-a.log
+          # B: the tests passed, the scan rejected the log, the upload did not run and no artifact exists, and the steps still failed
+          test "${{ steps.b.outcome }}" = "failure"
+          test "${{ steps.b.outputs.status }}" = "0"
+          test "${{ steps.b.outputs.scan }}" = "failure"
+          test "${{ steps.b.outputs.published }}" != "success"
+          test "${{ steps.fetch-b.outcome }}" = "failure"
+          test ! -e fetched-b/pytest-failpath-b.log
+  macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install SQLCipher and build its Python binding from source (no macOS wheel exists)
+        run: |
+          brew install sqlcipher
+          prefix="$(brew --prefix sqlcipher)"
+          export CFLAGS="-I$prefix/include -I$prefix/include/sqlcipher"
+          export LDFLAGS="-L$prefix/lib"
+          pip install sqlcipher3
+      - run: pip install -e kit -e "core[dev,macos]"  # the real Calendar, Contacts and Photos frameworks
+      - name: Install the browser the engine drives (Playwright Chromium)
+        run: python -m playwright install chromium
+      - name: Swift app builds and its tests pass (including the real Swift launcher and client against the real Core)
+        working-directory: app
+        run: |
+          swift --version
+          swift build
+          ATLAS_CI_PYTHON="$(which python)" swift test
+      - name: Core tests on macOS
+        working-directory: core
+        run: pytest -q -p no:cacheprovider
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate the Xcode project and build the phone app for the iOS simulator (unsigned)
+        working-directory: ios
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          xcodebuild -project AtlasPhone.xcodeproj -scheme AtlasPhone -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO build
+      - name: Run the accessibility audit and keep screenshots (iOS simulator)
+        working-directory: ios
+        run: |
+          udid="$(xcrun simctl list devices available -j | python3 -c "import json,sys; d=json.load(sys.stdin)['devices']; print(next(x['udid'] for k,v in d.items() if 'iOS' in k for x in v if 'iPhone' in x['name']))")"
+          xcodebuild test -project AtlasPhone.xcodeproj -scheme AtlasPhone -destination "id=$udid" CODE_SIGNING_ALLOWED=NO -resultBundlePath "$PWD/phone-ui.xcresult"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phone-ui-results
+          path: ios/phone-ui.xcresult
+          if-no-files-found: warn
+  mac-ui:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install SQLCipher and the Core (the app starts its real Core)
+        run: |
+          brew install sqlcipher
+          prefix="$(brew --prefix sqlcipher)"
+          export CFLAGS="-I$prefix/include -I$prefix/include/sqlcipher"
+          export LDFLAGS="-L$prefix/lib"
+          pip install sqlcipher3
+          pip install -e kit -e "core[macos]"
+      - name: Run the accessibility audit on the Mac app and keep a screenshot
+        working-directory: app/xcode
+        run: |
+          brew install xcodegen
+          xcodegen generate
+          TEST_RUNNER_ATLAS_CI_PYTHON="$(which python)" ATLAS_CI_PYTHON="$(which python)" xcodebuild test -project AtlasMac.xcodeproj -scheme AtlasMac -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO -resultBundlePath "$PWD/mac-ui.xcresult"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-ui-results
+          path: app/xcode/mac-ui.xcresult
+          if-no-files-found: warn
+  macos-mlx:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install the real MLX library and a small public model (downloaded OUTSIDE the sandbox)
+        run: |
+          pip install -e kit -e "core[dev]" mlx-lm huggingface_hub
+          python -c "from huggingface_hub import snapshot_download; print(snapshot_download('mlx-community/SmolLM-135M-Instruct-4bit', local_dir='/tmp/atlas-model'))"
+          ls -la /tmp/atlas-model
+      - name: Real MLX inference inside the sandboxed worker
+        working-directory: core
+        env:
+          ATLAS_MLX_MODEL_DIR: /tmp/atlas-model
+        run: pytest -q -p no:cacheprovider tests/test_mlx_native.py tests/test_isolated.py
+  app:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Build Atlas.app (Swift app plus a private Python with the Core inside it)
+        run: |
+          brew install sqlcipher
+          scripts/package_mac.sh "$PWD/build/Atlas.app"
+          ls -la build/Atlas.app/Contents/MacOS build/Atlas.app/Contents/Resources
+      - name: Launch the app, check it starts its Core and stops it on quit
+        run: |
+          support="$HOME/Library/Application Support/Atlas"
+          rm -rf "$support"
+          build/Atlas.app/Contents/MacOS/Atlas > /tmp/atlas-app.log 2>&1 &
+          app=$!
+          for i in $(seq 1 60); do [ -S "$support/run/core.sock" ] && break; sleep 1; done
+          [ -S "$support/run/core.sock" ] || { echo "the app did not start its Core"; cat /tmp/atlas-app.log; ps aux | grep -i atlas | head; exit 1; }
+          core=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['pid'])" "$support/run/core.pid")  # the pid file records the pid, start time, socket and data folder
+          echo "app pid $app, core pid $core"
+          sleep 4
+          screencapture -x /tmp/atlas-launch.png || echo "no screen to capture"
+          kill -0 "$core" || { echo "core not running"; exit 1; }
+          kill -TERM "$app"
+          for i in $(seq 1 20); do kill -0 "$core" 2>/dev/null || break; sleep 1; done
+          if kill -0 "$core" 2>/dev/null; then echo "the Core outlived the app"; exit 1; fi
+          echo "the app started its Core and the Core stopped with the app"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-app-launch-screenshot
+          path: /tmp/atlas-launch.png
+          if-no-files-found: warn
+      - name: Package the app for download
+        run: ditto -c -k --keepParent build/Atlas.app Atlas-unsigned.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Atlas-app-unsigned
+          path: Atlas-unsigned.zip
   security:
     runs-on: ubuntu-latest
     defaults:
