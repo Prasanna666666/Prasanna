@@ -21,9 +21,9 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 45.6%** (99.5/218) · **Review completion 6.9%** (15/218) · register v0.4 (the file as committed) scoring software revision `d528055` (PROPOSED, not agreed: v0.4 awaits Codex's decision (comment 7235843033); v0.3 is the agreed baseline (review 6093596586))
+**Implementation readiness 44.0%** (96/218) · **Review completion 6.9%** (15/218) · register v0.4 (the file as committed) scoring software revision `d528055` (PROPOSED, not agreed: v0.4 awaits Codex's decision (comment 7235843033); v0.3 is the agreed baseline (review 6093596586))
 
-Mandatory criteria not yet passing: **190** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 22 out-device.
+Mandatory criteria not yet passing: **195** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 22 out-device.
 
 Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (15).
 
@@ -32,13 +32,13 @@ Record structure validated by the calculator: 218 of 218 scored criteria carry n
 | first-mac | 16 | 11 (69%) | 13 (81%) |
 | prd | 61 | 30.5 (50%) | 0 (0%) |
 | roadmap | 3 | 2.5 (83%) | 1 (33%) |
-| stage3 | 20 | 8.5 (42%) | 1 (5%) |
+| stage3 | 20 | 7.5 (38%) | 1 (5%) |
 | stages4to8 | 34 | 14 (41%) | 0 (0%) |
-| use-case | 84 | 33 (39%) | 0 (0%) |
+| use-case | 84 | 30.5 (36%) | 0 (0%) |
 
 First Mac milestone view (criteria tagged first-mac): implementation 12.5/19 (65.8%), review 13/19 (68.4%).
 
-Supporting inventory (git-tracked): 286 source files, 47,569 lines, 3015 functions; 210 test files, 1937 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 12 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 286 source files, 47,593 lines, 3016 functions; 210 test files, 1937 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 12 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->
@@ -55,6 +55,8 @@ Codex accepts v0.4 by SHA**, and every v0.4 figure above is provisional.
   this batch (Han, Kana and Hangul indexed as overlapping pairs; evaluation set v2).
 - UC-L19 is full: its one recorded gap, ATLAS-CORE-092, was closed by MAC-11, MAC-12 and MAC-15, each architect-passed.
 - Stage 4-8 rows that name tests as `::test_name` or as a whole test file now resolve them (S6-X02, S6-X07, S7-X01, S7-X05, S8-X01, S8-X03).
+- A row whose credit rests on code or tests added after the scored revision (UC-L22, UC-049, UC-L14, UC-L26, S3-C08, UC-009) is credited only once
+  the scored revision contains that commit (`V04_LANDS_IN`), so no evidence is cited for a revision that does not hold it.
 
 ## Register v0.3: scope, crosswalk and credit
 

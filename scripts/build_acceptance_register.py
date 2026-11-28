@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import json
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -507,6 +508,14 @@ V04_DEVICE_ONLY_GAPS["UC-002"] = ("the owner's walkthrough of the app's insuffic
 V04_STAGE3_CHECKPOINT = ("S3-C04", "S3-C07", "S3-C11")
 # Rows whose recorded gap a later, architect-passed change closed: the gap's own evidence is cited.
 V04_GAP_CLOSED = {
+    "UC-009": ("the app model's question flow now lives in AtlasKit (QuestionRunner) and is tested against a scripted Core at every Stop timing; a cancelled or expired task's answer is never fetched, so it is never shown as Failed", [
+        ("app/Tests/AtlasKitTests/QuestionRunnerTests.swift", "testStopPressedBeforeTheTaskIDReturnsCancelsThatTaskAndShowsCancelled"),
+        ("app/Tests/AtlasKitTests/QuestionRunnerTests.swift", "testStopPressedWhileTheTaskRunsShowsCancelledNotFailed"),
+        ("app/Tests/AtlasKitTests/QuestionRunnerTests.swift", "testStopPressedAfterTheTaskCompletedChangesNothing"),
+        ("app/Tests/AtlasKitTests/QuestionRunnerTests.swift", "testAnExpiredTaskShowsExpiredNeverFailedAndItsAnswerIsNotFetched"),
+        ("core/tests/test_tasks.py", "test_cancellation_is_honoured_before_the_run_and_during_it"),
+        ("core/tests/test_api.py", "test_cancel_over_the_api_is_safe_to_repeat_and_unfinished_results_are_a_conflict"),
+    ]),
     "UC-L14": ("action receipts are durable across restart in this batch (ATLAS-ACT-019 undo receipts in the encrypted edits store); the app's failed-undo state and the connector fix it waited on have passed exact-head CI since", [
         ("core/tests/test_actions.py", "test_an_action_done_before_a_restart_can_still_be_undone_after_it_exactly_once"),
         ("core/tests/test_actions.py", "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"),
@@ -532,7 +541,25 @@ V04_GAP_CLOSED = {
 }
 
 
+# Rows whose credit rests on code or tests added after the scored revision: credited only once the scored revision contains that commit
+# (so no evidence is ever cited for a revision that does not hold it). "local" marks work not yet pushed.
+V04_LANDS_IN = {"UC-L22": "6c35e620517abfed7d45e42b2fd3b6c52afa50a3", "UC-049": "29d0550", "UC-L14": "29d0550", "UC-L26": "29d0550", "S3-C08": "e8d8f3d", "UC-009": "local"}
+
+
+def _landed(cid: str) -> bool:
+    commit = V04_LANDS_IN.get(cid)
+    if commit is None:
+        return True
+    if commit == "local":
+        return False
+    done = subprocess.run(["git", "merge-base", "--is-ancestor", commit, CI_REVISION], cwd=ROOT, capture_output=True, check=False)
+    return done.returncode == 0
+
+
 def _full(c: dict, refs: list[tuple[str, str]], note: str) -> None:
+    if not _landed(c["id"]):
+        c["v04_awaiting"] = f"credited once the scored revision contains {V04_LANDS_IN[c['id']]}: {note}"
+        return
     c["implementation"] = {"state": "full", "evidence": [{**test(p, n), "proves": "full"} for p, n in refs] + [{**j, "proves": "full"} for j in (ci("core-3.11"), ci("core-3.13"), ci("macos", "Core tests on macOS"))]}
     c["v04_basis"] = note
 

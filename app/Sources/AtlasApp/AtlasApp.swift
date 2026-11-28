@@ -233,7 +233,7 @@ final class AppModel: ObservableObject {
 
     private var gate = SubmissionGate()
     private var tracker = PhaseTracker()
-    private var submissionCancellation = SubmissionCancellation()
+    private let stopSignal = StopSignal()  // the owner's Stop for the running question (QuestionRunner applies it at any timing)
     private var client: CoreClient?
     private let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas")
     private var socket: String { support.appendingPathComponent("run/core.sock").path }
@@ -585,26 +585,24 @@ final class AppModel: ObservableObject {
         turns.append(Turn(question: text, answer: nil, phase: .received, failure: nil, taskID: nil))
         let index = turns.count - 1
         let sources = scope
-        submissionCancellation.begin()
-        defer { submissionCancellation.end(); busy = false; gate.end() }
+        defer { busy = false; gate.end() }
         do {
-            let id = try await Task.detached { try client.ask(question: text, scope: sources) }.value
-            let cancelImmediately = submissionCancellation.bind(id)
-            turns[index].taskID = id
-            question = ""
-            if cancelImmediately {
-                do { _ = try await Task.detached { try client.cancel(id) }.value }
-                catch { failure = "Atlas could not stop this task yet." }
+            // The flow lives in AtlasKit (QuestionRunner) so its every Stop timing is tested: a cancelled, expired or failed task ends with its
+            // own phase and its answer is never fetched, so Stop shows Cancelled, never Failed.
+            let outcome = try await QuestionRunner.run(
+                client: client, question: text, scope: sources, stop: stopSignal,
+                onID: { id in turns[index].taskID = id; question = "" },
+                onState: { state in if let phase = tracker.update(coreState: state) { turns[index].phase = phase } },
+                onStopFailed: { failure = "Atlas could not stop this task yet." }
+            )
+            switch outcome {
+            case .answered(let phase, let raw):
+                turns[index].answer = AnswerView(raw)
+                record(task: text, phase: turns[index].phase ?? phase, id: turns[index].taskID ?? turns[index].id.uuidString)
+            case .ended(let phase):
+                turns[index].phase = phase
+                record(task: text, phase: phase, id: turns[index].taskID ?? turns[index].id.uuidString)
             }
-            while true {
-                let state = try await Task.detached { try client.state(id) }.value
-                if let phase = tracker.update(coreState: state) { turns[index].phase = phase }
-                if TaskPhase.from(coreState: state).isTerminal || TaskPhase.from(coreState: state) == .unknown { break }
-                try await Task.sleep(nanoseconds: 300_000_000)
-            }
-            let raw = try await Task.detached { try client.answer(id) }.value
-            turns[index].answer = AnswerView(raw)
-            record(task: text, phase: turns[index].phase ?? .completed, id: id)
         } catch {
             let message = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")
             turns[index].failure = message
@@ -620,8 +618,7 @@ final class AppModel: ObservableObject {
 
     func cancel() async {
         guard let client, busy else { return }
-        guard let id = submissionCancellation.request() else { return }
-        do { _ = try await Task.detached { try client.cancel(id) }.value }
+        do { try await QuestionRunner.stop(client: client, signal: stopSignal) }  // before the ID is known, run() applies it when the ID arrives
         catch { failure = "Atlas could not stop this task yet." }
     }
 
