@@ -571,12 +571,13 @@ final class AppModel: ObservableObject {
         library = .loading
         libraryFilter = nil
         let sources = scope
-        let token = generation.token()
-        do {
-            let response = try await Task.detached { try client.librarySearch(text, scope: sources) }.value
-            guard generation.isCurrent(token) else { return }  // access changed while it ran: never shown
-            library = Withdrawal.library(LibraryOutcome.from(response), withdrawn: Set(sources).subtracting(scope))
-        } catch { library = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
+        await Guarded.run(  // access changed while it ran: neither the result nor an error is shown (MAC-20)
+            generation,
+            work: { try await Task.detached { try client.librarySearch(text, scope: sources) }.value },
+            deliver: { response in library = Withdrawal.library(LibraryOutcome.from(response), withdrawn: Set(sources).subtracting(scope)) },
+            failed: { error in library = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) },
+            stale: { library = .failed(Withdrawal.staleNotice) }
+        )
     }
 
     // MARK: conversation
@@ -590,35 +591,46 @@ final class AppModel: ObservableObject {
         let index = turns.count - 1
         let sources = scope
         defer { busy = false; gate.end() }
-        do {
-            // The flow lives in AtlasKit (QuestionRunner) so its every Stop timing is tested: a cancelled, expired or failed task ends with its
-            // own phase and its answer is never fetched, so Stop shows Cancelled, never Failed.
-            let outcome = try await QuestionRunner.run(
-                client: client, question: text, scope: sources, stop: stopSignal,
-                onID: { id in turns[index].taskID = id; question = "" },
-                onState: { state in if let phase = tracker.update(coreState: state) { turns[index].phase = phase } },
-                onStopFailed: { failure = "Atlas could not stop this task yet." }
-            )
-            switch outcome {
-            case .answered(let phase, let raw):
-                let view = AnswerView(raw)
-                if Withdrawal.hides(view, withdrawn: Set(sources).subtracting(scope)) {
-                    turns[index].failure = Withdrawal.removedNotice  // a source it cites was turned off while it ran
-                } else {
-                    turns[index].answer = view
+        // The flow lives in AtlasKit (QuestionRunner) so its every Stop timing is tested: a cancelled, expired or failed task ends with its own
+        // phase and its answer is never fetched, so Stop shows Cancelled, never Failed. Guarded drops a result or an error that returns after the
+        // owner changed access while it ran (MAC-20), even if the same source was turned on again since.
+        await Guarded.run(
+            generation,
+            work: {
+                try await QuestionRunner.run(
+                    client: client, question: text, scope: sources, stop: stopSignal,
+                    onID: { id in turns[index].taskID = id; question = "" },
+                    onState: { state in if let phase = tracker.update(coreState: state) { turns[index].phase = phase } },
+                    onStopFailed: { failure = "Atlas could not stop this task yet." }
+                )
+            },
+            deliver: { outcome in
+                switch outcome {
+                case .answered(let phase, let raw):
+                    let view = AnswerView(raw)
+                    if Withdrawal.hides(view, withdrawn: Set(sources).subtracting(scope)) {
+                        turns[index].failure = Withdrawal.removedNotice  // a source it cites was turned off while it ran
+                    } else {
+                        turns[index].answer = view
+                    }
+                    record(task: text, phase: turns[index].phase ?? phase, id: turns[index].taskID ?? turns[index].id.uuidString)
+                case .ended(let phase):
+                    turns[index].phase = phase
+                    record(task: text, phase: phase, id: turns[index].taskID ?? turns[index].id.uuidString)
                 }
-                record(task: text, phase: turns[index].phase ?? phase, id: turns[index].taskID ?? turns[index].id.uuidString)
-            case .ended(let phase):
-                turns[index].phase = phase
-                record(task: text, phase: phase, id: turns[index].taskID ?? turns[index].id.uuidString)
+            },
+            failed: { error in
+                let message = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")
+                turns[index].failure = message
+                turns[index].phase = .failed
+                failure = message  // the question stays in the composer so nothing typed is lost
+                record(task: text, phase: .failed, id: turns[index].id.uuidString)
+            },
+            stale: {
+                turns[index].failure = Withdrawal.staleNotice
+                record(task: text, phase: turns[index].phase ?? .failed, id: turns[index].taskID ?? turns[index].id.uuidString)
             }
-        } catch {
-            let message = (error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")
-            turns[index].failure = message
-            turns[index].phase = .failed
-            failure = message  // the question stays in the composer so nothing typed is lost
-            record(task: text, phase: .failed, id: turns[index].id.uuidString)
-        }
+        )
     }
 
     private func record(task text: String, phase: TaskPhase, id: String) {
@@ -635,10 +647,16 @@ final class AppModel: ObservableObject {
         guard let client, let id = turn.taskID else { return }
         selectedCitation = citation
         evidence = nil
-        do {
-            let text = try await Task.detached { try client.passage(id, index: citation.id) }.value
-            evidence = EvidenceState.from(coreCode: nil, text: text)
-        } catch AtlasError.core(let code) { evidence = EvidenceState.from(coreCode: code, text: nil) } catch { evidence = .unsupportedLocator }
+        await Guarded.run(  // a passage that returns after access changed, or after another citation was opened, is never written (MAC-20)
+            generation,
+            work: { try await Task.detached { try client.passage(id, index: citation.id) }.value },
+            deliver: { text in if selectedCitation?.id == citation.id { evidence = EvidenceState.from(coreCode: nil, text: text) } },
+            failed: { error in
+                guard selectedCitation?.id == citation.id else { return }
+                if case AtlasError.core(let code) = error { evidence = EvidenceState.from(coreCode: code, text: nil) } else { evidence = .unsupportedLocator }
+            },
+            stale: { if selectedCitation?.id == citation.id { selectedCitation = nil; evidence = nil } }  // closed, never left waiting
+        )
     }
 
     func closeEvidence() { selectedCitation = nil; evidence = nil }

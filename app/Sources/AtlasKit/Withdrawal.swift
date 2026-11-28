@@ -4,6 +4,8 @@ import Foundation
 /// that cites it is replaced by a plain notice, and a search or answer that comes back after the change is discarded instead of shown.
 public enum Withdrawal {
     public static let removedNotice = "Removed: you turned off a source this answer used."
+    /// Shown instead of a result (or an error) that comes back after the owner changed access while it ran.
+    public static let staleNotice = "Your sources changed while this ran. Ask again to get an answer from what is allowed now."
 
     /// The Library after `withdrawn` source types lost access: their results are gone; a page left with nothing says so.
     public static func library(_ state: LoadState<LibraryPage>, withdrawn: Set<String>) -> LoadState<LibraryPage> {
@@ -32,4 +34,23 @@ public final class ResultGeneration {
     public func token() -> Int { value }
     public func advance() { value += 1 }
     public func isCurrent(_ token: Int) -> Bool { token == value }
+}
+
+/// One request whose result must not outlive an access change (MAC-20, review 6098896232). The token is taken BEFORE the work starts; when the work
+/// returns, its result or its error is delivered only if no withdrawal happened in between. Otherwise `stale` runs and neither is shown. A
+/// withdrawal followed by re-enabling the same source still counts as a change: the generation only moves forward, so an older answer cannot
+/// slip through. A retry after the change takes a new token and is delivered normally.
+@MainActor
+public enum Guarded {
+    public static func run<T>(
+        _ generation: ResultGeneration, work: () async throws -> T, deliver: (T) -> Void, failed: (Error) -> Void, stale: () -> Void
+    ) async {
+        let token = generation.token()
+        do {
+            let value = try await work()
+            if generation.isCurrent(token) { deliver(value) } else { stale() }
+        } catch {
+            if generation.isCurrent(token) { failed(error) } else { stale() }
+        }
+    }
 }
