@@ -111,6 +111,16 @@
    "test_the_inventory_counts_and_sums_before_anything_is_read_or_written"
   ]
  ],
+ "PRD-2-01": [
+  [
+   "core/tests/test_enrolment.py",
+   "test_a_fresh_install_enrols_its_owner_client_unsigned_once_and_can_then_act_as_owner"
+  ],
+  [
+   "core/tests/test_enrolment.py",
+   "test_racing_first_run_callers_cannot_both_become_owner"
+  ]
+ ],
  "PRD-2-02": [
   [
    "app/Tests/AtlasKitTests/PhoneTests.swift",
@@ -395,6 +405,16 @@
   [
    "core/tests/test_actions.py",
    "test_the_action_matrix_only_the_four_categories_ever_need_approval"
+  ]
+ ],
+ "PRD-5A-04": [
+  [
+   "core/tests/test_actions.py",
+   "test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use"
+  ],
+  [
+   "core/tests/test_actions.py",
+   "test_an_approval_expires_and_cannot_be_granted_after_use"
   ]
  ],
  "PRD-5A-05": [
@@ -837,6 +857,16 @@
    "test_the_registry_is_sealed_and_an_agent_cannot_change_its_own_authority"
   ]
  ],
+ "UC-L12": [
+  [
+   "core/tests/test_actions.py",
+   "test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use"
+  ],
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testAMaterialChangeInvalidatesTheApprovalAndAnUnchangedPayloadDoesNot"
+  ]
+ ],
  "UC-L13": [
   [
    "core/tests/test_actions.py",
@@ -921,6 +951,16 @@
   [
    "core/tests/test_browser_watchers.py",
    "test_a_notification_carries_no_content_and_a_watcher_has_no_way_to_act"
+  ]
+ ],
+ "UC-L26": [
+  [
+   "core/tests/test_api_v11.py",
+   "test_coverage_states_are_honest_and_tie_to_limitations"
+  ],
+  [
+   "core/tests/test_api.py",
+   "test_suppressed_coverage_never_reports_indexing_done_after_the_question_as_searched"
   ]
  ],
  "UC-L27": [

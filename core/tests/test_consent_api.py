@@ -65,8 +65,13 @@ def test_get_started_enables_a_source_the_core_indexes_it_and_status_reports_cou
     world.wait_indexed(core)
     status = owner(world).index_status()
     contracts.validate("IndexStatus", status, "1.1")
-    assert status["state"] == "idle" and status["indexed"] == status["total"] > 0 and status["newest_indexed"] is None
+    from atlas_core.documents import iso_utc
+
+    newest = iso_utc(max(p.stat().st_mtime for p in world.docs.rglob("*") if p.is_file()))
+    assert status["state"] == "idle" and status["indexed"] == status["total"] > 0 and status["newest_indexed"] == newest  # UC-L26: the newest item's own time
     assert "1250.50" not in json.dumps(status) and "invoice" not in json.dumps(status)
+    owner(world).withdraw(state["grants"][0]["grant_id"])
+    assert owner(world).index_status()["newest_indexed"] is None  # a withdrawn source contributes nothing, not even a timestamp
 
 
 def test_a_replayed_request_changes_nothing(world):

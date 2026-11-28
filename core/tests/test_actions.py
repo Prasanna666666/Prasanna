@@ -275,3 +275,31 @@ def test_a_completed_action_replayed_after_a_restart_is_answered_done_and_not_ru
     first = build().propose("note.write", {"t": "x"}, origin="owner_request", idempotency_key="k")
     again = build().propose("note.write", {"t": "x"}, origin="owner_request", idempotency_key="k")
     assert (first.status, again.status, again.action_id) == ("done", "done", first.action_id) and runs == [1]
+
+
+def test_an_action_done_before_a_restart_can_still_be_undone_after_it_exactly_once(tmp_path):
+    """ATLAS-ACT-019, UC-L14: the receipt an undo needs (action name, payload and result) is written to the owner's encrypted edits store before
+    the outcome returns. After a restart (a new gateway, the same store) the owner's undo works, and a second undo after another restart is
+    refused as already undone. An unknown id, or an id whose action is not registered in this run, is refused, never guessed."""
+    store_path = tmp_path / "edits.db"
+
+    def gateway():
+        store = RecordStore(store_path, KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+        g = ActionGateway(receipts=store)
+        register_record_actions(g, store, Outbox(), lambda _rid: None)
+        return g, store
+
+    g, store = gateway()
+    created = own(g, "calendar.create", event(), "c1")
+    assert created.status == "done" and store.get("e1").record.title == "Dentist"
+    store.close()
+    g, store = gateway()  # a restart
+    undone = g.undo(created.action_id)
+    assert (undone.status, undone.code) == ("done", "undone") and store.get("e1", include_deleted=True).deleted
+    assert g.undo("0" * 16).code == "unknown_action_id"
+    store.close()
+    g, store = gateway()  # another restart
+    assert g.undo(created.action_id).code == "already_undone"
+    bare = ActionGateway(receipts=store)  # nothing registered in this run: the receipt is not enough to run anything
+    assert bare.undo(created.action_id).code == "unknown_action_id"
+    store.close()

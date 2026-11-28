@@ -468,12 +468,36 @@ V04_DEVICE_ONLY_GAPS["PRD-3-06"] = ("the owner's selected model, quantisation, c
     ("core/tests/test_api_v11.py", "test_a_1_1_answer_carries_coverage_model_and_the_echo_header"),
     ("core/tests/test_api_v11.py", "test_a_withheld_1_1_answer_reports_no_coverage_of_the_revoked_source_and_no_model"),
 ])
+V04_DEVICE_ONLY_GAPS["UC-047"] = ("the real Apple Mail store, account and version on the owner's Mac", [
+    ("core/tests/test_mail.py", "test_a_sender_or_date_written_in_the_body_is_never_the_stored_sender_or_date"),
+])
+V04_DEVICE_ONLY_GAPS["UC-L08"] = ("the owner's model installed and measured on the target Mac", [
+    ("core/tests/test_intelligence.py", "test_all_models_failing_is_model_unavailable"),
+    ("core/tests/test_intelligence.py", "test_a_request_needing_a_capability_nobody_has_is_unavailable_not_degraded"),
+    ("core/tests/test_intelligence.py", "test_text_requests_may_fall_back_to_the_text_model_but_image_requests_never_do"),
+])
 # Stage 3 rows whose own checkpoint (MET-L: every listed test passes in hosted CI) is met although their status cell starts with PARTIAL: the
 # local scope is stated as met, and the remainder is a real-model or final-stage portion. S3-C07's PARTIAL awaited exact-head CI, which has
 # since passed on every head. S3-C08 is not included: it records an open defect (ATLAS-CORE-084).
 V04_STAGE3_CHECKPOINT = ("S3-C04", "S3-C07", "S3-C11")
 # Rows whose recorded gap a later, architect-passed change closed: the gap's own evidence is cited.
 V04_GAP_CLOSED = {
+    "UC-L14": ("action receipts are durable across restart in this batch (ATLAS-ACT-019 undo receipts in the encrypted edits store); the app's failed-undo state and the connector fix it waited on have passed exact-head CI since", [
+        ("core/tests/test_actions.py", "test_an_action_done_before_a_restart_can_still_be_undone_after_it_exactly_once"),
+        ("core/tests/test_actions.py", "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"),
+        ("core/tests/test_connectors.py", "test_connector_undo_fails_closed_when_previous_state_or_credentials_are_unavailable"),
+        ("app/Tests/AtlasKitTests/SubmissionGateTests.swift", "testUndoOnlyClearsWhenCoreExplicitlyConfirmsDone"),
+    ]),
+    "UC-L26": ("both concrete gaps closed in this batch: newest_indexed is now the newest permitted item's own timestamp (null after withdrawal) and unspaced-script retrieval works; 'source breadth' is the supported-source scope the row is defined over", [
+        ("core/tests/test_consent_api.py", "test_get_started_enables_a_source_the_core_indexes_it_and_status_reports_counts_only"),
+        ("core/tests/test_api_v11.py", "test_coverage_states_are_honest_and_tie_to_limitations"),
+        ("core/tests/test_api.py", "test_suppressed_coverage_never_reports_indexing_done_after_the_question_as_searched"),
+        ("core/tests/test_documents.py", "test_unspaced_scripts_are_indexed_as_overlapping_pairs_so_a_japanese_question_finds_its_document"),
+    ]),
+    "UC-049": ("the dedicated adversarial invite test the matrix found missing is added in this batch", [
+        ("core/tests/test_domains.py", "test_a_hostile_calendar_invite_is_data_it_cannot_trigger_an_action_or_change_a_grant"),
+        ("core/tests/test_actions.py", "test_instructions_in_content_can_neither_propose_nor_approve"),
+    ]),
     "UC-L19": ("ATLAS-CORE-092 (the API read-after-check race) is closed by MAC-11, MAC-12 and MAC-15, each passed by the architect", [
         ("core/tests/test_designation.py", "test_the_platform_taking_a_granted_permission_back_revokes_the_grant_and_purges"),
         ("core/tests/test_domains.py", "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it"),

@@ -20,7 +20,7 @@ import stat
 import threading
 from collections.abc import Callable, Iterable, Iterator, Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import UTC, date, datetime
 from pathlib import Path, PurePosixPath
 from typing import Any, Protocol
 
@@ -266,6 +266,13 @@ class Scanner:
 def source_id_for(rel_path: str) -> str:
     """An opaque identifier that carries none of the file's name or content (the contract's Opaque pattern)."""
     return "d" + hashlib.sha256(rel_path.encode("utf-8")).hexdigest()[:24]
+
+
+def iso_utc(epoch: float | None) -> str | None:
+    """A stored modification time or message date as an ISO-8601 UTC timestamp; None when there is none (never guessed)."""
+    if epoch is None:
+        return None
+    return datetime.fromtimestamp(float(epoch), tz=UTC).isoformat().replace("+00:00", "Z")
 
 
 def terms(query: str) -> list[str]:
@@ -552,6 +559,7 @@ class DocumentIndex(IndexStore):
                 for r in self._conn.execute("SELECT reason, count(*) AS n FROM docs WHERE status='failed' AND reason IS NOT NULL GROUP BY reason")
             }
             missing = self._conn.execute("SELECT count(*) AS n FROM docs WHERE mtime IS NULL AND status != 'failed'").fetchone()["n"]
+            newest = self._conn.execute("SELECT max(mtime) AS t FROM docs WHERE status='indexed'").fetchone()["t"]
             scan_done = self._meta("scan_state") == "done" and self._meta("scan_cut_off") != "1"
             paused = self._meta("paused") or None
         out = {
@@ -565,6 +573,7 @@ class DocumentIndex(IndexStore):
             "failed_reasons": failed_reasons,
             "scan_complete": scan_done,
             "paused": paused,
+            "newest": iso_utc(newest),
         }
         out["complete"] = scan_done and paused is None and out["pending"] == 0 and out["unsupported"] == 0 and out["failed"] == 0
         return out

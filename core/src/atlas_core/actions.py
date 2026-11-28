@@ -26,7 +26,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 EFFECTS = frozenset({"read", "local_reversible", "local_irreversible", "external_send", "spend", "physical_security"})
 CATEGORY = {
@@ -184,6 +184,14 @@ class IdempotencyFile:
         return seen
 
 
+class ReceiptBook(Protocol):
+    """Durable, encrypted action receipts: what an executed action's undo needs (its name, payload and result), so undo works after a restart."""
+
+    def put_receipt(self, action_id: str, name: str, payload: dict[str, Any], result: dict[str, Any]) -> None: ...
+    def receipt(self, action_id: str) -> tuple[str, dict[str, Any], dict[str, Any], bool] | None: ...
+    def mark_undone(self, action_id: str) -> None: ...
+
+
 class ActionGateway:
     def __init__(
         self,
@@ -191,8 +199,9 @@ class ActionGateway:
         audit_file: AuditFile | None = None,
         history: list[AuditEntry] | None = None,
         idempotency: IdempotencyFile | None = None,
+        receipts: ReceiptBook | None = None,
     ) -> None:
-        self._clock, self._lock, self._audit_file, self._idem_file = clock, threading.RLock(), audit_file, idempotency
+        self._clock, self._lock, self._audit_file, self._idem_file, self._receipts = clock, threading.RLock(), audit_file, idempotency, receipts
         self._specs: dict[str, ActionSpec] = {}
         self._approvals: dict[str, Approval] = {}
         self._done: dict[str, _Done] = {}
@@ -284,6 +293,8 @@ class ActionGateway:
                 return Outcome("failed", "handler_failed")
             action_id = secrets.token_hex(8)
             self._done[action_id] = _Done(spec, dict(payload), dict(result))
+            if self._receipts is not None:
+                self._receipts.put_receipt(action_id, name, dict(payload), dict(result))  # durable before the outcome is returned
             outcome = Outcome("done", action_id=action_id, result=dict(result))
             self._remember(name, idempotency_key, digest, outcome)
             self._log(name, "done", "", digest, approval_id if category is not None else None)
@@ -305,9 +316,19 @@ class ActionGateway:
         self._log(name, "refused", code, digest, None)
         return Outcome("refused", code)
 
+    def _from_receipt(self, action_id: str) -> _Done | None:
+        """An action executed before a restart: rebuilt from its durable receipt, with the handler of the same name registered in this run."""
+        found = self._receipts.receipt(action_id) if self._receipts is not None else None
+        if found is None or found[0] not in self._specs:
+            return None
+        name, payload, result, undone = found
+        done = _Done(self._specs[name], payload, result, undone)
+        self._done[action_id] = done
+        return done
+
     def undo(self, action_id: str) -> Outcome:
         with self._lock:
-            done = self._done.get(action_id)
+            done = self._done.get(action_id) or self._from_receipt(action_id)
             if done is None:
                 return Outcome("refused", "unknown_action_id")
             if done.undone:
@@ -321,6 +342,8 @@ class ActionGateway:
                 self._log(done.spec.name, "failed", "undo_failed", digest, None)
                 return Outcome("failed", "undo_failed")
             done.undone = True
+            if self._receipts is not None:
+                self._receipts.mark_undone(action_id)
             self._log(done.spec.name, "done", "undone", digest, None)
             return Outcome("done", "undone", action_id=action_id)
 

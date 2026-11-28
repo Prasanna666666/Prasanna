@@ -31,6 +31,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS records (record_id TEXT PRIMARY KEY, domain TEXT NOT NULL, version INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, date TEXT NOT NULL, title TEXT NOT NULL, fields TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS history (seq INTEGER PRIMARY KEY AUTOINCREMENT, record_id TEXT NOT NULL, version INTEGER NOT NULL, op TEXT NOT NULL, before TEXT, after TEXT, at TEXT NOT NULL, origin TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS history_record ON history(record_id);
+CREATE TABLE IF NOT EXISTS receipts (action_id TEXT PRIMARY KEY, name TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
 """
 
 
@@ -78,6 +79,23 @@ class RecordStore:
                 raise StoreError("newer_store")
             self._conn.executescript(_SCHEMA)
             self._conn.execute(f"PRAGMA user_version = {SCHEMA_VERSION}")
+
+    # -- action receipts (ATLAS-ACT-019): what an executed action needs for its undo, kept in this encrypted store so undo survives a restart ----
+    def put_receipt(self, action_id: str, name: str, payload: dict[str, Any], result: dict[str, Any]) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO receipts (action_id, name, payload, result) VALUES (?,?,?,?)",
+                (action_id, name, json.dumps(payload, sort_keys=True), json.dumps(result, sort_keys=True)),
+            )
+
+    def receipt(self, action_id: str) -> tuple[str, dict[str, Any], dict[str, Any], bool] | None:
+        with self._lock:
+            row = self._conn.execute("SELECT name, payload, result, undone FROM receipts WHERE action_id=?", (action_id,)).fetchone()
+        return None if row is None else (str(row["name"]), json.loads(row["payload"]), json.loads(row["result"]), bool(row["undone"]))
+
+    def mark_undone(self, action_id: str) -> None:
+        with self._lock:
+            self._conn.execute("UPDATE receipts SET undone=1 WHERE action_id=?", (action_id,))
 
     def close(self) -> None:
         self._conn.close()

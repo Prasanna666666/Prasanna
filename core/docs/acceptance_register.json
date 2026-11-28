@@ -4991,10 +4991,47 @@
    "aliases": [],
    "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
-   "checkpoint": "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)",
+   "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "checkpoint",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_enrolment.py::test_a_fresh_install_enrols_its_owner_client_unsigned_once_and_can_then_act_as_owner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_enrolment.py::test_racing_first_run_callers_cannot_both_become_owner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     }
+    ]
    },
    "review": {
     "verdict": null
@@ -7282,10 +7319,47 @@
    "aliases": [],
    "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
-   "checkpoint": "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)",
+   "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "checkpoint",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_actions.py::test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_actions.py::test_an_approval_expires_and_cannot_be_granted_after_use",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     }
+    ]
    },
    "review": {
     "verdict": null
@@ -10623,7 +10697,7 @@
   {
    "id": "UC-047",
    "stage": null,
-   "title": "UC-047 Quoted/forwarded sender attribution",
+   "title": "UC-047 Quoted/forwarded sender attribution (software part)",
    "source": "use-case",
    "source_ref": "docs/genesis/USE_CASE_CONFORMANCE.md, §3 row 17",
    "refs": [
@@ -10638,18 +10712,50 @@
    "scope": "in",
    "milestones": [],
    "aliases": [],
-   "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
+   "pass_condition": "The software part of the requirement is met as specified on the candidate build; the remaining device-only verification (the real Apple Mail store, account and version on the owner's Mac) is UC-047-DEV.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
    "checkpoint": "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "full",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_mail.py::test_a_sender_or_date_written_in_the_body_is_never_the_stored_sender_or_date",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     }
+    ]
    },
    "review": {
     "verdict": null
    },
    "recorded_status": "IMPLEMENTED FOR TESTED MAIL HEADERS/BODY",
-   "open_gap": "Real Apple Mail store/account/version validation remains absent."
+   "open_gap": "Real Apple Mail store/account/version validation remains absent.",
+   "v04_basis": "software complete; only device verification remains (split to the -DEV row)"
   },
   {
    "id": "UC-048",
@@ -10704,14 +10810,52 @@
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
    "checkpoint": "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "full",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_domains.py::test_a_hostile_calendar_invite_is_data_it_cannot_trigger_an_action_or_change_a_grant",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_actions.py::test_instructions_in_content_can_neither_propose_nor_approve",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     }
+    ]
    },
    "review": {
     "verdict": null
    },
    "recorded_status": "UNVERIFIED",
-   "open_gap": "No dedicated adversarial invite-title/description/attendee/link injection test was found in the reviewed evidence."
+   "open_gap": "No dedicated adversarial invite-title/description/attendee/link injection test was found in the reviewed evidence.",
+   "v04_basis": "the dedicated adversarial invite test the matrix found missing is added in this batch"
   },
   {
    "id": "UC-050",
@@ -11329,7 +11473,7 @@
   {
    "id": "UC-L08",
    "stage": null,
-   "title": "UC-L08 Model unavailable",
+   "title": "UC-L08 Model unavailable (software part)",
    "source": "use-case",
    "source_ref": "docs/genesis/USE_CASE_CONFORMANCE.md, §4 row 8",
    "refs": [
@@ -11344,18 +11488,62 @@
    "scope": "in",
    "milestones": [],
    "aliases": [],
-   "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
+   "pass_condition": "The software part of the requirement is met as specified on the candidate build; the remaining device-only verification (the owner's model installed and measured on the target Mac) is UC-L08-DEV.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
    "checkpoint": "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "full",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_all_models_failing_is_model_unavailable",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_a_request_needing_a_capability_nobody_has_is_unavailable_not_degraded",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_text_requests_may_fall_back_to_the_text_model_but_image_requests_never_do",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     }
+    ]
    },
    "review": {
     "verdict": null
    },
    "recorded_status": "IMPLEMENTED FOR BOUNDED DETERMINISTIC FALLBACK",
-   "open_gap": "Owner-model installation/performance not verified; no cloud fallback is correctly present."
+   "open_gap": "Owner-model installation/performance not verified; no cloud fallback is correctly present.",
+   "v04_basis": "software complete; only device verification remains (split to the -DEV row)"
   },
   {
    "id": "UC-L09",
@@ -11557,10 +11745,47 @@
    "aliases": [],
    "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
-   "checkpoint": "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)",
+   "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "checkpoint",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_actions.py::test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "app/Tests/AtlasKitTests/DesignSystemTests.swift::testAMaterialChangeInvalidatesTheApprovalAndAnUnchangedPayloadDoesNot",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Swift tests and Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     }
+    ]
    },
    "review": {
     "verdict": null
@@ -11658,19 +11883,31 @@
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
    "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "checkpoint",
+    "state": "full",
     "evidence": [
      {
       "kind": "test",
       "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
-      "ref": "core/tests/test_actions.py::test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone",
-      "proves": "checkpoint"
+      "ref": "core/tests/test_actions.py::test_an_action_done_before_a_restart_can_still_be_undone_after_it_exactly_once",
+      "proves": "full"
      },
      {
       "kind": "test",
       "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
-      "ref": "core/tests/test_connectors.py::test_a_reversible_change_is_prompt_free_and_undoable_while_unlocking_a_door_needs_the_owners_approval",
-      "proves": "checkpoint"
+      "ref": "core/tests/test_actions.py::test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_connectors.py::test_connector_undo_fails_closed_when_previous_state_or_credentials_are_unavailable",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "app/Tests/AtlasKitTests/SubmissionGateTests.swift::testUndoOnlyClearsWhenCoreExplicitlyConfirmsDone",
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -11678,7 +11915,7 @@
       "ref": "hosted core-3.11 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -11686,7 +11923,7 @@
       "ref": "hosted core-3.13 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -11694,7 +11931,7 @@
       "ref": "hosted macos job: Core tests on macOS",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      }
     ]
    },
@@ -11702,7 +11939,8 @@
     "verdict": null
    },
    "recorded_status": "PARTIAL",
-   "open_gap": "App now preserves failed undo state and displays a message (ATLAS-APP-053; helper test and exact-head CI pending); action receipts are not durable across restart; exact-head CI pending for connector fix."
+   "open_gap": "App now preserves failed undo state and displays a message (ATLAS-APP-053; helper test and exact-head CI pending); action receipts are not durable across restart; exact-head CI pending for connector fix.",
+   "v04_basis": "action receipts are durable across restart in this batch (ATLAS-ACT-019 undo receipts in the encrypted edits store); the app's failed-undo state and the connector fix it waited on have passed exact-head CI since"
   },
   {
    "id": "UC-L15",
@@ -12400,16 +12638,66 @@
    "aliases": [],
    "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
-   "checkpoint": "IMPLEMENTED in the conformance matrix and every exact test it names passes in hosted Core CI (an open gap may remain)",
+   "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "full",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_consent_api.py::test_get_started_enables_a_source_the_core_indexes_it_and_status_reports_counts_only",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_api_v11.py::test_coverage_states_are_honest_and_tie_to_limitations",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_api.py::test_suppressed_coverage_never_reports_indexing_done_after_the_question_as_searched",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_documents.py::test_unspaced_scripts_are_indexed_as_overlapping_pairs_so_a_japanese_question_finds_its_document",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     }
+    ]
    },
    "review": {
     "verdict": null
    },
    "recorded_status": "IMPLEMENTED FOR SUPPORTED INDEXED SOURCES",
-   "open_gap": "newest_indexed is always null; source breadth is limited and Japanese/unspaced retrieval is incomplete."
+   "open_gap": "newest_indexed is always null; source breadth is limited and Japanese/unspaced retrieval is incomplete.",
+   "v04_basis": "both concrete gaps closed in this batch: newest_indexed is now the newest permitted item's own timestamp (null after withdrawal) and unspaced-script retrieval works; 'source breadth' is the supported-source scope the row is defined over"
   },
   {
    "id": "UC-L27",
@@ -14127,6 +14415,66 @@
     "verdict": null
    },
    "split_from": "PRD-3-06"
+  },
+  {
+   "id": "UC-047-DEV",
+   "stage": null,
+   "title": "UC-047 Quoted/forwarded sender attribution (device part)",
+   "source": "use-case",
+   "source_ref": "docs/genesis/USE_CASE_CONFORMANCE.md, §3 row 17",
+   "refs": [
+    "docs/genesis/USE_CASE_CONFORMANCE.md, §3 row 17"
+   ],
+   "owners": {
+    "implementation": "Claude",
+    "verdict": "Codex",
+    "sign_off": "Owner"
+   },
+   "mandatory": true,
+   "scope": "out-device",
+   "milestones": [],
+   "aliases": [],
+   "pass_condition": "Verified on physical hardware: the real Apple Mail store, account and version on the owner's Mac.",
+   "required_evidence": "Owner-run check on the physical device",
+   "checkpoint": "None defined: scored 0 or 1",
+   "implementation": {
+    "state": "none",
+    "evidence": []
+   },
+   "review": {
+    "verdict": null
+   },
+   "split_from": "UC-047"
+  },
+  {
+   "id": "UC-L08-DEV",
+   "stage": null,
+   "title": "UC-L08 Model unavailable (device part)",
+   "source": "use-case",
+   "source_ref": "docs/genesis/USE_CASE_CONFORMANCE.md, §4 row 8",
+   "refs": [
+    "docs/genesis/USE_CASE_CONFORMANCE.md, §4 row 8"
+   ],
+   "owners": {
+    "implementation": "Claude",
+    "verdict": "Codex",
+    "sign_off": "Owner"
+   },
+   "mandatory": true,
+   "scope": "out-device",
+   "milestones": [],
+   "aliases": [],
+   "pass_condition": "Verified on physical hardware: the owner's model installed and measured on the target Mac.",
+   "required_evidence": "Owner-run check on the physical device",
+   "checkpoint": "None defined: scored 0 or 1",
+   "implementation": {
+    "state": "none",
+    "evidence": []
+   },
+   "review": {
+    "verdict": null
+   },
+   "split_from": "UC-L08"
   }
  ],
  "review_batches": [

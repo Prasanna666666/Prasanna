@@ -286,7 +286,7 @@ class Core:
             self.edits.close()
             self.edits = None
             return None
-        gateway = ActionGateway(c.clock, audit, history, IdempotencyFile(c.data_dir / "actions-idempotency.jsonl"))
+        gateway = ActionGateway(c.clock, audit, history, IdempotencyFile(c.data_dir / "actions-idempotency.jsonl"), receipts=self.edits)
         self.action_gateway = gateway
         register_record_actions(gateway, self.edits, c.outbox, c.erase)
         edits = self.edits
