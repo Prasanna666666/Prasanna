@@ -121,3 +121,44 @@ def test_a_newer_store_is_refused_before_any_change_to_its_schema_or_bytes(tmp_p
         (1,)
     ]  # the data is untouched (the journal-mode header flag is the connection's, not this store's schema)
     check.close()
+
+
+def _event(rid: str, starts: str, ends: str | None = None) -> Record:
+    return Record(rid, "calendar", starts[:10], "Dentist", {"starts": starts, **({"ends": ends} if ends else {})})
+
+
+@pytest.mark.parametrize(
+    ("starts", "ends", "code"),
+    [
+        ("2026-10-20T09:00:00", None, "ambiguous_time"),  # no offset: 09:00 where? never read as UTC
+        ("2026-10-20T09:00", "2026-10-20T10:00:00+02:00", "ambiguous_time"),
+        ("2026-10-20T09:00:00+02:00", "2026-10-20T10:00:00", "ambiguous_time"),
+        ("next tuesday", None, "bad_time"),
+        ("2026-10-20T10:00:00+02:00", "2026-10-20T09:00:00+02:00", "bad_time_range"),
+    ],
+)
+def test_an_event_written_without_a_utc_offset_or_ending_before_it_starts_is_refused(store, starts, ends, code):
+    """UC-L21: a start or end the owner's records are written with must name one moment. Before this fix a time without an offset was stored and
+    then read as UTC, moving a 09:00 Amsterdam appointment to 10:00 or 11:00 local time."""
+    with pytest.raises(StoreError) as e:
+        store.create(_event("e1", starts, ends))
+    assert e.value.code == code and store.in_domain("calendar") == []
+
+
+def test_an_event_with_an_offset_is_kept_as_written_and_an_edit_to_an_ambiguous_time_is_refused(store):
+    store.create(_event("e1", "2026-10-20T09:00:00+02:00", "2026-10-20T10:00:00+02:00"))
+    store.create(_event("e2", "2026-10-21T07:00:00Z"))
+    assert store.get("e1").record.fields["starts"] == "2026-10-20T09:00:00+02:00"  # the offset the owner wrote is kept, not converted
+    with pytest.raises(StoreError) as e:
+        store.update("e1", 1, fields={"starts": "2026-10-20T11:00:00"})
+    assert e.value.code == "ambiguous_time" and store.get("e1").version == 1 and store.get("e1").record.fields["starts"] == "2026-10-20T09:00:00+02:00"
+    store.update("e1", 1, fields={"starts": "2026-10-20T11:00:00+02:00", "ends": "2026-10-20T12:00:00+02:00"})
+    assert store.get("e1").version == 2
+
+
+def test_a_stored_time_without_an_offset_is_skipped_by_the_attention_check_never_read_as_utc():
+    """An event stored before UC-L21 without an offset names no moment: the overlap check skips it rather than placing it at that hour in UTC."""
+    from atlas_core.operations import _moment
+
+    assert _moment("2026-10-20T09:00:00") is None
+    assert _moment("2026-10-20T09:00:00+02:00").utcoffset().total_seconds() == 7200 and _moment("2026-10-20T07:00:00Z").utcoffset().total_seconds() == 0

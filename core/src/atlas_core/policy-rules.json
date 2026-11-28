@@ -133,6 +133,10 @@
       ],
       "required": [
         "starts"
+      ],
+      "times": [
+        "starts",
+        "ends"
       ]
     },
     "contacts": {
@@ -165,6 +169,10 @@
       ],
       "required": [
         "starts"
+      ],
+      "times": [
+        "starts",
+        "ends"
       ]
     },
     "photos": {

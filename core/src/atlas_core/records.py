@@ -14,6 +14,7 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
+from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -70,6 +71,26 @@ class Record:
         for name, allowed in schema.get("kinds", {}).items():
             if name in self.fields and self.fields[name] not in allowed:
                 raise RecordError("bad_kind")
+
+
+def check_times(record: Record) -> None:
+    """A time the owner's own records are WRITTEN with (an event's or a trip's start and end) carries its offset from UTC, so it means one moment:
+    a time without one (2026-10-20T09:00) is refused as `ambiguous_time`, never read as UTC, which would move it by the owner's offset (UC-L21).
+    An end before its start is refused as `bad_time_range`. Records already stored are read as they are; only new writes are checked."""
+    moments = {}
+    for name in _schema()[record.domain].get("times", ()):
+        text = record.fields.get(name, "").strip()
+        if not text:
+            continue
+        try:
+            value = datetime.fromisoformat(text.replace("Z", "+00:00"))
+        except ValueError:
+            raise RecordError("bad_time") from None
+        if value.tzinfo is None or value.utcoffset() is None:
+            raise RecordError("ambiguous_time")
+        moments[name] = value
+    if "starts" in moments and "ends" in moments and moments["ends"] < moments["starts"]:
+        raise RecordError("bad_time_range")
 
 
 def _check_money(text: str) -> Decimal:

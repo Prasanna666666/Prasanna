@@ -8,7 +8,7 @@ itself with the `untrusted_content` origin, which the gateway refuses.
 from __future__ import annotations
 
 import base64
-from datetime import UTC, datetime, timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -46,7 +46,7 @@ def _moment(text: str) -> datetime | None:
         value = datetime.fromisoformat(text.replace("Z", "+00:00"))
     except ValueError:
         return None
-    return value if value.tzinfo else value.replace(tzinfo=UTC)
+    return value if value.tzinfo else None  # a time without an offset (written before UC-L21) names no moment: skipped, never read as UTC
 
 
 class Operations:

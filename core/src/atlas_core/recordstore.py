@@ -24,7 +24,7 @@ from typing import Any
 from kit.db import connect
 
 from .mail import Listed, ListPage
-from .records import Record, RecordError, as_message
+from .records import Record, RecordError, as_message, check_times
 
 SCHEMA_VERSION = 1
 _UNDONE, _UNDO_PENDING = 1, 2  # receipts.undone: 0 eligible, 1 undone, 2 a remote compensation was sent and its outcome is unknown
@@ -154,6 +154,10 @@ class RecordStore:
     def _check(self, record: Record) -> None:
         if record.domain not in self._domains:
             raise StoreError("wrong_domain")
+        try:
+            check_times(record)
+        except RecordError as error:
+            raise StoreError(error.code) from None
 
     def _write(self, op: str, before: str | None, after: Record, deleted: bool, version: int, origin: str, also: Callable[[int], None] | None = None) -> int:
         """`also(new_seq)` runs inside the same transaction, after the history row exists: all of it commits, or none of it."""
@@ -204,6 +208,7 @@ class RecordStore:
                 after = Record(record_id, current.record.domain, date or current.record.date, title or current.record.title, merged)
             except RecordError:
                 raise StoreError("invalid") from None
+            self._check(after)
             return self._write("update", _dump(current.record), after, False, current.version + 1, origin)
 
     def delete(self, record_id: str, expected_version: int, origin: str = "owner") -> int:
