@@ -152,7 +152,7 @@ jobs:
         uses: ./.github/actions/core-tests
         with:
           label: failpath-a
-          artefacts: ../failpath-a
+          artefacts: failpath-a
           pytest-args: -p no:cacheprovider --rootdir ../case-a ../case-a
       - name: "Case B: a passing test whose log carries a sentinel, through the shared steps"
         id: b
@@ -160,7 +160,7 @@ jobs:
         uses: ./.github/actions/core-tests
         with:
           label: failpath-b
-          artefacts: ../failpath-b
+          artefacts: failpath-b
           pytest-args: -p no:cacheprovider -rA --rootdir ../case-b ../case-b
       - name: "Case A published report, read back from this run"
         id: fetch-a

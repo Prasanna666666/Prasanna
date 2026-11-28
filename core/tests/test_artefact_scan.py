@@ -60,6 +60,7 @@ def test_the_ci_failure_paths_job_runs_the_core_jobs_own_steps_and_asserts_both_
     assert "set -o pipefail" in tests and "|| status=$?" in tests and "--junitxml=" in tests
     assert "python tools/scan_artefacts.py" in scan and "continue-on-error" not in scan
     assert "upload-artifact" in publish and "if:" not in publish.split("with:")[0]  # the default success(): never after a failed scan
+    assert ".." not in publish and ".." not in action.split("artefacts:", 1)[1].split("outputs:", 1)[0]  # upload-artifact rejects ".." (run 46156119549)
     assert "always()" in final and "exit 1" in final
     job = _job("core-failure-paths", "macos")
     assert job.count("uses: ./.github/actions/core-tests") == 2
