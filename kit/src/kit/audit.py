@@ -7,41 +7,83 @@ a tool returned only in accounting brackets, `(250.00)`, proves the negative val
 from __future__ import annotations
 
 import re
-from decimal import Decimal, InvalidOperation
+import unicodedata
+from decimal import Decimal
 
 _MINUS = "-−"  # hyphen-minus and the Unicode minus sign
-_NUM = re.compile(rf"(?<![\w.])(?P<sign>[{_MINUS}])?(?P<num>\d{{1,3}}(?:,\d{{3}})+(?:\.\d+)?|\d+\.\d+|\d{{3,}})")
-_TOOL_NUM = re.compile(rf"(?<![\w.])(?P<open>\()?(?P<sign>[{_MINUS}])?(?P<num>\d+(?:\.\d+)?)(?P<close>\))?")
+_SMALL = 3  # a bare integer of fewer digits is a count (3 payments, 30 days), not a figure
+_GROUP_ONLY = "\u00a0\u202f\u2009'"  # no-break, narrow no-break and thin space, apostrophe: only ever thousands separators
+# A numeric token: digits with any separators between them (a final full stop or comma is punctuation, not part of the number). Only an ASCII
+# letter, digit or underscore before it makes it part of an identifier (ACME2041); a kana, kanji or other letter does not, since Japanese and
+# Chinese write figures directly after words (支払総額は5800円).
+_TOKEN = re.compile(rf"(?<![A-Za-z0-9_.,])(?P<open>\()?(?P<sign>[{_MINUS}])?(?P<num>\d(?:[\d.,{_GROUP_ONLY}]*\d)?)(?P<close>\))?")
+_WESTERN = re.compile(r"\d{1,3}(?:G\d{3})+")
+_INDIAN = re.compile(r"\d{1,2}(?:G\d{2})*G\d{3}")  # lakh and crore grouping: 4,52,000 and 1,23,45,678
 
 
-def _signed(sign: str | None, num: str) -> Decimal | None:
-    try:
-        value = Decimal(num.replace(",", ""))
-    except InvalidOperation:
-        return None
-    return -value if sign else value
+def _ascii(text: str) -> str:
+    """Every decimal digit as ASCII (full-width, Devanagari, Arabic-Indic ...), and the full-width comma, full stop and minus as their ASCII forms;
+    one character for one, so nothing else moves."""
+    wide = {"，": ",", "．": ".", "－": "-"}
+    return "".join(str(unicodedata.decimal(ch)) if ch.isdecimal() else wide.get(ch, ch) for ch in text)
 
 
-def _numbers(text: str) -> list[Decimal]:
-    found = (_signed(m.group("sign"), m.group("num")) for m in _NUM.finditer(text))
-    return [v for v in found if v is not None]
+def _readings(num: str) -> frozenset[Decimal] | None:
+    """Every value the written number can validly stand for. The decimal separator, if any, is the last separator and occurs once; the other
+    separators are one grouping character in Western threes or Indian lakh/crore groups. 480,00 reads only as 480.00, 1.234,5 only as 1234.5,
+    4,52,000 only as 452000; 1,250 reads as 1250 or 1.25. None when no reading is valid (a version number, a malformed figure)."""
+    seps = [ch for ch in num if not ch.isdigit()]
+    if not seps:
+        return frozenset({Decimal(num)})
+    values: set[Decimal] = set()
+    for point in (".", ",", None):
+        whole, frac = num, ""
+        if point is not None:
+            if seps.count(point) != 1 or seps[-1] != point:
+                continue
+            whole, frac = num.rsplit(point, 1)
+        group = {ch for ch in whole if not ch.isdigit()}
+        if len(group) > 1 or group == {point}:
+            continue
+        if group:
+            shape = re.sub(r"[^\d]", "G", whole)
+            if not (_WESTERN.fullmatch(shape) or _INDIAN.fullmatch(shape)):
+                continue
+        values.add(Decimal(re.sub(r"[^\d]", "", whole) + ("." + frac if frac else "")))
+    return frozenset(values) or None
 
 
-def _proven(outputs: list[str]) -> set[Decimal]:
-    seen: set[Decimal] = set()
-    for out in outputs:
-        for m in _TOOL_NUM.finditer(out):
-            value = _signed(m.group("sign") or (m.group("open") and m.group("close") and "-"), m.group("num"))
-            if value is not None:
-                seen.add(value)
-    return seen
+def _tokens(text: str, brackets: bool) -> list[tuple[str, frozenset[Decimal] | None]]:
+    """(the number as written, its signed readings) for every numeric token. `brackets`: an accounting bracket, (250.00), means negative."""
+    out = []
+    for m in _TOKEN.finditer(_ascii(text)):
+        num = m.group("num")
+        negative = bool(m.group("sign")) or (brackets and bool(m.group("open")) and bool(m.group("close")))
+        readings = _readings(num)
+        out.append((("-" if negative else "") + num, None if readings is None else frozenset(-v if negative else v for v in readings)))
+    return out
 
 
 def unproven_figures(reply: str, tool_outputs: list[str]) -> list[float]:
     """Figures in the agent's reply (amounts with decimals or thousands, and any number of 3+ digits) that no tool returned, exactly and with the same sign. Dates and years are ignored.
-    Empty if the agent used no tool: it then states no data of yours."""
+    A figure is proven only by a tool figure with exactly the same set of readings, so a decimal comma is never dropped (480,99 is not proven by
+    480,00) and an ambiguous 1,250 is proven by 1,250 but not by 1.25 or 1250 alone. Empty if the agent used no tool: it then states no data of yours."""
     if not tool_outputs:
         return []
-    seen = _proven(tool_outputs)
-    text = re.sub(r"\b(?:19|20)\d{2}(?:-\d{2}){0,2}\b", " ", reply)
-    return sorted({float(n) for n in _numbers(text) if n not in seen})
+    proven = {(readings if readings is not None else written) for out in tool_outputs for written, readings in _tokens(out, brackets=True)}
+    text = re.sub(r"\b(?:19|20)\d{2}(?:-\d{2}){0,2}\b|\b\d{1,2}[./]\d{1,2}[./](?:19|20)\d{2}\b", " ", _ascii(reply))
+    unproven: set[float] = set()
+    for written, readings in _tokens(text, brackets=False):
+        digits = sum(ch.isdigit() for ch in written)
+        if digits < _SMALL and written.lstrip("-").isdigit():
+            continue  # a small count (3 payments, 30 days) is not a figure
+        if (readings if readings is not None else written) not in proven:
+            unproven.add(float(_first(written, readings)))
+    return sorted(unproven)
+
+
+def _first(written: str, readings: frozenset[Decimal] | None) -> Decimal:
+    """The reading reported for an unproven figure: the value without a decimal comma when there is one (1,250 is reported as 1250.0)."""
+    if readings is None:
+        return Decimal(("-" if written.startswith("-") else "") + re.sub(r"[^\d]", "", written))
+    return max(readings, key=abs)

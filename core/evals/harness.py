@@ -37,7 +37,7 @@ from atlas_core.service import Deps, TaskService  # noqa: E402
 from atlas_core.tasks import TaskStore  # noqa: E402
 from atlas_core.values import LanguageIn  # noqa: E402
 
-SET_FILE = HERE / "set_v2.json"  # v2: ja-total is answerable now that unspaced scripts are indexed as bigrams (v1 recorded it as a known gap)
+SET_FILE = HERE / "set_v3.json"  # v3 (UC-L22): mixed-language documents and verbatim names and units; v2 made ja-total answerable (bigram index)
 TOP_K = 8
 
 
@@ -117,6 +117,11 @@ def _check(case: dict[str, Any], envelope: dict[str, Any], model: ScriptedModel,
         failures.append("searched types differ")
     if "context_must_not_contain" in expect and any(expect["context_must_not_contain"] in p["text"] for c in model.seen for p in c.passages):
         failures.append("forbidden text reached the model")
+    for text in expect.get("preserved", []):  # names and units are kept exactly as the source writes them: never translated or normalised
+        if not any(text in p["text"] for c in model.seen for p in c.passages):
+            failures.append(f"not verbatim in the passages the model saw: {text}")
+        if not any(text in c["quote"] for c in envelope["citations"]) and text not in envelope["answer"]:
+            failures.append(f"not verbatim in the cited quote or the answer: {text}")
     if "answer_must_not_match" in expect and re.search(expect["answer_must_not_match"], envelope["answer"]):
         failures.append("answer matched a forbidden pattern")
     return failures
@@ -152,6 +157,11 @@ def run(path: Path = SET_FILE) -> dict[str, Any]:
             service.run(record["task_id"])
             envelope = service.answer(record["task_id"])
             failures = _check(case, envelope, model, retriever, names)
+            texts = {name: doc["text"] for name, doc in data["documents"].items()}
+            for context in model.seen:  # every passage reaches the model exactly as the source writes it (no case folding, NFKC or translation)
+                for passage in context.passages:
+                    if passage["text"] not in texts.get(names.get(passage["evidence"]["source_id"], "?"), ""):
+                        failures.append("a passage is not a verbatim part of its source")
             ranked = [names.get(p["evidence"]["source_id"], "?") for p in index.search("documents", case["question"])][:TOP_K]
             gold = case.get("gold", [])
             if gold:

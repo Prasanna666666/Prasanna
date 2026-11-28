@@ -14,7 +14,7 @@ sys.path.insert(0, str(EVALS))
 
 import harness  # noqa: E402
 
-SET_SHA256 = "59599c404789e681cc3bdd15140a0e077efc5b2de0eb1308d166f330e61aaa88"
+SET_SHA256 = "ba9408b9758ef206f166b3cfc04d26298b07c6006286a1ed6fe050c5978e13af"
 REQUIRED = {"answerable", "abstention", "contradictory", "stale", "hallucination", "citation", "injection", "cross_domain"}
 
 
@@ -24,7 +24,7 @@ def report() -> dict:
 
 
 def test_the_set_is_locked_so_a_change_must_be_a_new_version():
-    assert harness.set_sha256() == SET_SHA256 and json.loads(harness.SET_FILE.read_text())["version"] == "2"
+    assert harness.set_sha256() == SET_SHA256 and json.loads(harness.SET_FILE.read_text())["version"] == "3"
 
 
 def test_every_case_behaves_as_specified_through_the_real_pipeline(report):
@@ -55,4 +55,32 @@ def test_the_report_states_what_it_does_not_measure(report):
 
 def test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded(report):
     # the outcomes are checked by the cases themselves; here we pin the totals so a weakened check cannot go unnoticed
-    assert report["answer_quality"]["outcomes"] == {"grounded": 9, "no_evidence": 0, "ungrounded": 4, "rejected": 1}
+    assert report["answer_quality"]["outcomes"] == {"grounded": 13, "no_evidence": 0, "ungrounded": 6, "rejected": 1}
+
+
+CASES = {case["id"]: case for case in json.loads(harness.SET_FILE.read_text(encoding="utf-8"))["cases"]}
+
+
+def test_a_document_mixing_dutch_and_english_is_found_and_cited_from_either_language(report):
+    """UC-L22 (language mix): one meeting note written partly in Dutch and partly in English answers an English and a Dutch question."""
+    assert {CASES["mixed-en-q"]["language"], CASES["mixed-nl-q"]["language"]} == {"en", "nl"}
+    assert not {row["id"] for row in report["failed_cases"]} & {"mixed-en-q", "mixed-nl-q"}
+    assert all(CASES[c]["expect"]["cited"] == ["notulen_mixed.txt"] and CASES[c]["gold"] == ["notulen_mixed.txt"] for c in ("mixed-en-q", "mixed-nl-q"))
+    assert all(v["recall"] == 1.0 for v in report["retrieval_quality"]["by_language"].values())  # every language in the set, ja and hi included
+
+
+def test_names_and_units_are_kept_verbatim_from_source_to_passage_quote_and_answer(report):
+    """UC-L22 (preserve original language, names and units): the harness fails a case whose passages, cited quote or answer lose a name with
+    diacritics or in its own script, or a unit (kWh, m², ₹ with lakh grouping, full-width yen); and every passage of every case is a verbatim part
+    of its source, so nothing is case-folded, NFKC-normalised (m² to m2, １２ to 12) or translated on the way to the model."""
+    preserved = {text for case in CASES.values() for text in case["expect"].get("preserved", [])}
+    assert {"Zoë Ångström-Müller", "85 m²", "1.234,5 kWh", "श्रीमती अनन्या राव", "₹4,52,000", "山田太郎様", "１２，８００円"} <= preserved
+    assert report["failed_cases"] == []
+
+
+def test_a_figure_in_a_decimal_comma_or_unspaced_language_is_checked_exactly(report):
+    """UC-L22 / exact figures: 480,99 against a source of 480,00 and 9999円 written straight after kana are both caught (both passed as grounded
+    before kit.audit read decimal commas and figures that follow kana); ₹4,52,000 is proven by the same lakh figure."""
+    assert CASES["nl-cent-off"]["expect"] == {"outcome": "ungrounded", "cited": ["factuur_nl.txt"], "unproven_figures": [480.99]}
+    assert CASES["ja-wrong-figure"]["expect"]["unproven_figures"] == [9999.0] and CASES["hi-lakh"]["expect"]["outcome"] == "grounded"
+    assert not {row["id"] for row in report["failed_cases"]} & {"nl-cent-off", "ja-wrong-figure", "hi-lakh"}
