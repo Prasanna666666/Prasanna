@@ -18,7 +18,7 @@ from .devices import DeviceDirectory, DeviceError
 from .errors import CoreError
 from .recordstore import RecordStore
 from .sync import QueuedOp, SyncService
-from .watchers import calendar_conflicts
+from .watchers import calendar_conflicts, record_duplicates
 
 
 def _line(text: str) -> str:
@@ -66,25 +66,34 @@ class Operations:
         }
 
     def attention(self) -> dict[str, Any]:
-        """What needs the owner's attention, by code, from the owner's own calendar: events whose times overlap. Records without a usable start are skipped, never guessed."""
+        """What needs the owner's attention, by code, from the owner's own records: calendar events whose times overlap, and contacts or events that
+        look like one thing recorded twice (UC-L23; reported, never merged). Records without a usable start are skipped, never guessed. A pair of
+        events that is a likely duplicate is reported as that, not also as an overlap."""
         if self._store is None:
             return {"items": []}
-        titles, events = {}, []
-        for stored in self._store.in_domain("calendar"):
-            start = _moment(stored.record.fields.get("starts", ""))
+        titles: dict[str, str] = {}
+        events, own = [], {}
+        for domain in ("calendar", "contacts"):
+            own[domain] = [(s.record.record_id, s.record.title, dict(s.record.fields)) for s in self._store.in_domain(domain)]
+            titles.update({rid: title for rid, title, _ in own[domain]})
+        for record_id, _title, fields in own["calendar"]:
+            start = _moment(fields.get("starts", ""))
             if start is None:
                 continue
-            end = _moment(stored.record.fields.get("ends", "")) or start + DEFAULT_EVENT
-            titles[stored.record.record_id] = stored.record.title
-            events.append((stored.record.record_id, start, max(end, start)))
+            end = _moment(fields.get("ends", "")) or start + DEFAULT_EVENT
+            events.append((record_id, start, max(end, start)))
+        duplicates = [n for domain in ("calendar", "contacts") for n in record_duplicates(domain, own[domain])]
+        twice = {tuple(n.dedupe_key.split(":")[1:]) for n in duplicates}
+        found = [n for n in calendar_conflicts(events) if tuple(n.dedupe_key.split(":")[1:]) not in twice] + duplicates
         items = []
-        for n in calendar_conflicts(events)[:50]:
+        for n in found[:50]:
             first = n.dedupe_key.split(":")[1]
+            verb = "overlaps" if n.kind == "calendar_conflict" else "may be the same as"
             items.append(
                 {
                     "kind": n.kind,
                     "record_id": n.record_id,
-                    "title": _line(f"“{titles.get(first, '')}” overlaps “{titles.get(n.record_id, '')}”"),
+                    "title": _line(f"“{titles.get(first, '')}” {verb} “{titles.get(n.record_id, '')}”"),
                     "priority": n.priority,
                     "key": n.dedupe_key,
                 }

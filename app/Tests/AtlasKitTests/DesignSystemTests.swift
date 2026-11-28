@@ -266,6 +266,17 @@ final class ActivityTests: XCTestCase {
         XCTAssertNil(ActivityItem.fromAttention(["kind": "calendar_conflict"], now: now))
     }
 
+    func testAPossibleDuplicateFromTheCoreIsADecisionForTheOwner() {
+        let now = Date(timeIntervalSince1970: 100)
+        let raw: [String: Any] = ["kind": "possible_duplicate", "key": "duplicate:c1:c2", "title": "“Ana Ruiz” may be the same as “Ana R.”", "record_id": "c2", "priority": "normal"]
+        let item = ActivityItem.fromAttention(raw, now: now)
+        XCTAssertEqual(item?.kind, .decision)
+        XCTAssertEqual(item?.title, "Possibly recorded twice")
+        XCTAssertEqual(item?.detail, "“Ana Ruiz” may be the same as “Ana R.”")
+        XCTAssertEqual(item?.needsAttention, true)
+        XCTAssertNil(ActivityItem.fromAttention(["kind": "possible_duplicate", "key": "k"], now: now))
+    }
+
     func testTheGreetingNeedsALocalTimeAndEveryItemHasASymbol() {
         XCTAssertEqual(Greeting.text(hour: nil), "Your Atlas")
         XCTAssertEqual(Greeting.text(hour: 9), "Good morning")

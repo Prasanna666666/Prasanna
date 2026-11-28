@@ -38,7 +38,7 @@ Record structure validated by the calculator: 218 of 218 scored criteria carry n
 
 First Mac milestone view (criteria tagged first-mac): implementation 13.5/19 (71.1%), review 15/19 (78.9%).
 
-Supporting inventory (git-tracked): 288 source files, 48,153 lines, 3062 functions; 212 test files, 1980 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 16 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 288 source files, 48,195 lines, 3064 functions; 212 test files, 1983 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 16 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->

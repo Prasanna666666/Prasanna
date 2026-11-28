@@ -62,7 +62,14 @@ public enum Greeting {
 extension ActivityItem {
     /// An item for "Needs your attention" from the Core's attention list. A kind this app does not know is not shown (never as raw text).
     public static func fromAttention(_ raw: [String: Any], now: Date) -> ActivityItem? {
-        guard (raw["kind"] as? String) == "calendar_conflict", let key = raw["key"] as? String, let detail = raw["title"] as? String else { return nil }
-        return ActivityItem(id: "attention-" + key, kind: .risk, title: "Two events overlap", detail: detail, date: now, needsAttention: true, dedupeKey: key)
+        guard let key = raw["key"] as? String, let detail = raw["title"] as? String else { return nil }
+        switch raw["kind"] as? String {
+        case "calendar_conflict":
+            return ActivityItem(id: "attention-" + key, kind: .risk, title: "Two events overlap", detail: detail, date: now, needsAttention: true, dedupeKey: key)
+        case "possible_duplicate":  // reported by the Core, never merged: the owner decides whether to archive one (UC-L23)
+            return ActivityItem(id: "attention-" + key, kind: .decision, title: "Possibly recorded twice", detail: detail, date: now, needsAttention: true, dedupeKey: key)
+        default:
+            return nil
+        }
     }
 }

@@ -9,7 +9,7 @@ import pytest
 
 from atlas_core.actions import ActionGateway, ActionSpec
 from atlas_core.browser import FakeBrowser, run_browser_workflow
-from atlas_core.watchers import Notification, Notifier, bills_due, calendar_conflicts
+from atlas_core.watchers import Notification, Notifier, bills_due, calendar_conflicts, record_duplicates
 
 pytestmark = pytest.mark.criterion(8)
 ALLOWED = frozenset({"shop.example.invalid"})
@@ -116,3 +116,23 @@ def test_a_push_payload_is_a_kind_and_an_id_and_nothing_a_push_service_or_a_lock
 
     payload = push_payload(Notification("bill_due", "bill-1", "urgent", "k", "finance.review_bill"))
     assert payload == {"k": "bill_due", "id": "bill-1"} and "finance" not in repr(payload) and "urgent" not in repr(payload)
+
+
+def test_record_duplicates_need_a_shared_identity_not_a_similar_name():
+    """UC-L23: an email (without case) or phone number (by its last nine digits, at least seven) identifies a contact; a shared name alone does
+    not, and a short number is not compared. An event repeats only with the same title and the same start."""
+    contacts = [
+        ("a", "Ana", {"name": "Ana", "email": "ANA@x.org"}),
+        ("b", "Ana", {"name": "Ana", "email": "ana@x.org "}),
+        ("c", "Ana", {"name": "Ana"}),
+        ("d", "Desk", {"name": "Desk", "phone": "112"}),
+        ("e", "Desk 2", {"name": "Desk 2", "phone": "112"}),
+    ]
+    assert [n.dedupe_key for n in record_duplicates("contacts", contacts)] == ["duplicate:a:b"]
+    events = [
+        ("x", "Gym", {"starts": "2026-10-20T07:00:00+00:00"}),
+        ("y", "gym", {"starts": "2026-10-20T07:00:00+00:00"}),
+        ("z", "Gym", {"starts": "2026-10-21T07:00:00+00:00"}),
+    ]
+    found = record_duplicates("calendar", events)
+    assert [(n.kind, n.dedupe_key, n.suggested_action) for n in found] == [("possible_duplicate", "duplicate:x:y", "calendar.archive")]

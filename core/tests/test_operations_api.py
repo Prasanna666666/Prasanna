@@ -435,3 +435,31 @@ def test_a_deleted_or_truncated_audit_is_told_apart_from_a_first_run_by_its_exte
         assert (core2.operations is None) is (damage != "anchor_behind")
     finally:
         first.close()
+
+
+def test_contacts_and_events_recorded_twice_are_reported_for_the_owner_and_both_originals_stay(world):
+    """UC-L23 over the signed API: a contact entered twice (same email in other case, or the same number written two ways) and an event entered
+    twice (same title and start) are reported as possible duplicates; the event pair is not also reported as an overlap. Nothing is merged: both
+    records stay until the owner archives one (an undoable edit), after which the pair is no longer reported, and undo brings it back."""
+    owner = world.client()
+    start, end = "2026-10-20T09:00:00+00:00", "2026-10-20T10:00:00+00:00"
+    owner.act("contacts.create", {"id": "c1", "date": "2026-10-01", "title": "Ana Ruiz", "fields": {"name": "Ana Ruiz", "email": "Ana@Example.org"}})
+    owner.act("contacts.create", {"id": "c2", "date": "2026-10-02", "title": "Ana R.", "fields": {"name": "Ana R.", "email": " ana@example.org"}})
+    owner.act("contacts.create", {"id": "c3", "date": "2026-10-03", "title": "Bo", "fields": {"name": "Bo", "phone": "+31 6 1234 5678"}})
+    owner.act("contacts.create", {"id": "c4", "date": "2026-10-04", "title": "Bo (work)", "fields": {"name": "Bo", "phone": "06-12345678"}})
+    owner.act("contacts.create", {"id": "c5", "date": "2026-10-05", "title": "Cy", "fields": {"name": "Cy", "phone": "06-87654321"}})
+    owner.act("calendar.create", {"id": "e1", "date": start, "title": "Dentist", "fields": {"starts": start, "ends": end}})
+    owner.act("calendar.create", {"id": "e2", "date": start, "title": " dentist ", "fields": {"starts": start, "ends": end}})
+    items = owner.attention()
+    assert sorted((i["kind"], i["key"]) for i in items) == [
+        ("possible_duplicate", "duplicate:c1:c2"),
+        ("possible_duplicate", "duplicate:c3:c4"),
+        ("possible_duplicate", "duplicate:e1:e2"),
+    ]
+    assert next(i for i in items if i["key"] == "duplicate:c1:c2")["title"] == "“Ana Ruiz” may be the same as “Ana R.”"
+    assert {r["id"] for r in owner.records("contacts")} == {"c1", "c2", "c3", "c4", "c5"}  # nothing merged or removed
+    version = next(r["version"] for r in owner.records("contacts") if r["id"] == "c2")
+    archived = owner.act("contacts.archive", {"id": "c2", "expected_version": version})
+    assert "duplicate:c1:c2" not in {i["key"] for i in owner.attention()}
+    owner.undo(archived["action_id"])
+    assert "duplicate:c1:c2" in {i["key"] for i in owner.attention()}

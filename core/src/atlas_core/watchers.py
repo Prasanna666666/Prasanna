@@ -8,6 +8,7 @@ Action Gateway: at most it names an action the owner may choose to take.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, time, timedelta
@@ -19,7 +20,7 @@ DAYS_AHEAD_FOR_BILL = 3
 
 @dataclass(frozen=True)
 class Notification:
-    kind: str  # bill_due | calendar_conflict | unusual_transaction | custom
+    kind: str  # bill_due | calendar_conflict | possible_duplicate | unusual_transaction | custom
     record_id: str
     priority: str  # normal | urgent
     dedupe_key: str
@@ -54,6 +55,31 @@ def calendar_conflicts(events: Iterable[tuple[str, datetime, datetime]]) -> list
             first, second = sorted((id_a, id_b))
             out.append(Notification("calendar_conflict", second, "normal", f"conflict:{first}:{second}", "calendar.edit"))
     return out
+
+
+MIN_PHONE_DIGITS = 7
+
+
+def _phone(value: str) -> str:
+    digits = "".join(ch for ch in value if ch.isdigit())
+    return digits[-9:] if len(digits) >= MIN_PHONE_DIGITS else ""  # the last nine digits: +31 6 1234 5678 and 06 12345678 are one number
+
+
+def record_duplicates(domain: str, records: Iterable[tuple[str, str, dict[str, str]]]) -> list[Notification]:
+    """Pairs of the owner's own records that look like one thing recorded twice (UC-L23): contacts sharing an email address (without case) or a phone
+    number (by its digits), and calendar events with the same title (without case or spacing) and the same start. Reported for the owner to decide;
+    nothing is merged or removed, so both originals stay as they are."""
+    keys: dict[str, list[str]] = defaultdict(list)
+    for record_id, title, fields in records:
+        if domain == "contacts":
+            email = fields.get("email", "").strip().casefold()
+            for key in (f"email:{email}" if email else "", f"phone:{_phone(fields.get('phone', ''))}" if _phone(fields.get("phone", "")) else ""):
+                if key:
+                    keys[key].append(record_id)
+        elif domain == "calendar" and fields.get("starts", "").strip():
+            keys[f"event:{' '.join(title.casefold().split())}:{fields['starts'].strip()}"].append(record_id)
+    pairs = sorted({tuple(sorted((a, b))) for ids in keys.values() for i, a in enumerate(sorted(set(ids))) for b in sorted(set(ids))[i + 1 :]})
+    return [Notification("possible_duplicate", second, "normal", f"duplicate:{first}:{second}", f"{domain}.archive") for first, second in pairs]
 
 
 class Notifier:
