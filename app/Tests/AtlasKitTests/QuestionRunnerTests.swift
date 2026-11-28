@@ -12,6 +12,7 @@ final class QuestionRunnerTests: XCTestCase {
         var cancelled: [String] = []
         var answers = 0
         var onAsk: () -> Void = {}
+        var onAnswer: () -> Void = {}
         var onState: (Int) -> Void = { _ in }
         private var polls = 0
         init(states: [String]) { self.states = states }
@@ -24,7 +25,7 @@ final class QuestionRunnerTests: XCTestCase {
             return states.isEmpty ? "completed" : states.removeFirst()
         }
         func cancel(_ taskID: String) throws { cancelled.append(taskID) }
-        func answer(_ taskID: String) throws -> [String: Any] { answers += 1; return ["text": "done", "citations": []] }
+        func answer(_ taskID: String) throws -> [String: Any] { onAnswer(); answers += 1; return ["text": "done", "citations": []] }
     }
 
     private func phase(_ outcome: QuestionOutcome) -> TaskPhase {
@@ -65,6 +66,22 @@ final class QuestionRunnerTests: XCTestCase {
         let outcome = try await QuestionRunner.run(client: core, question: "q", scope: ["documents"], stop: stop, pollNanoseconds: 1_000)
         let sent = try await QuestionRunner.stop(client: core, signal: stop)
         XCTAssertFalse(sent)
+        XCTAssertTrue(core.cancelled.isEmpty)
+        XCTAssertEqual(phase(outcome), .completed)
+        XCTAssertEqual(core.answers, 1)
+    }
+
+    /// Review 6097009203: a Stop that arrives after the Core committed completion, while the answer is still being fetched, keeps the result:
+    /// no cancel is sent, no "could not stop" error is raised, and the outcome is Completed with its answer.
+    func testStopPressedWhileTheCompletedAnswerIsBeingFetchedKeepsTheResultWithoutAnError() async throws {
+        let core = ScriptedCore(states: ["running", "completed"])
+        let stop = StopSignal()
+        final class Box { var sent: Bool?; var stopFailed = false }
+        let box = Box()
+        core.onAnswer = { box.sent = stop.request() != nil }  // the owner presses Stop during the answer request
+        let outcome = try await QuestionRunner.run(client: core, question: "q", scope: ["documents"], stop: stop, pollNanoseconds: 1_000, onStopFailed: { box.stopFailed = true })
+        XCTAssertEqual(box.sent, false)
+        XCTAssertFalse(box.stopFailed)
         XCTAssertTrue(core.cancelled.isEmpty)
         XCTAssertEqual(phase(outcome), .completed)
         XCTAssertEqual(core.answers, 1)

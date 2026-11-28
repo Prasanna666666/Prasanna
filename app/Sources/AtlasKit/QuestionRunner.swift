@@ -15,15 +15,20 @@ extension CoreClient: QuestionClient {}
 /// earlier turn. Used from the main actor only (the app model and `QuestionRunner`).
 public final class StopSignal {
     private var cancellation = SubmissionCancellation()
+    private var committed = false
     public init() {}
 
+    /// The Core reported the task completed: from here a Stop has nothing to cancel, so it is a no-op (no cancel sent, no error shown) and the
+    /// result is kept.
+    public func markCompleted() { committed = true }
+
     public var taskID: String? { cancellation.taskID }
-    public func begin() { cancellation.begin() }
-    public func end() { cancellation.end() }
+    public func begin() { cancellation.begin(); committed = false }
+    public func end() { cancellation.end(); committed = false }
     /// True when Stop was pressed before the ID was known.
     public func bind(_ id: String) -> Bool { cancellation.bind(id) }
     /// Records the Stop and returns the task to cancel now, if its ID is known.
-    public func request() -> String? { cancellation.request() }
+    public func request() -> String? { committed ? nil : cancellation.request() }
 }
 
 /// How a question ended, as the app shows it. `answered` only for a completed task (with or without limitations); a cancelled, expired or failed
@@ -58,6 +63,7 @@ public enum QuestionRunner {
             try await Task.sleep(nanoseconds: pollNanoseconds)
         }
         guard phase == .completed || phase == .completedWithLimitations else { return .ended(phase) }
+        stop.markCompleted()  // a Stop pressed while the answer is fetched keeps the completed result and shows no error
         let raw = try await Task.detached { try client.answer(id) }.value
         return .answered(phase, raw)
     }
