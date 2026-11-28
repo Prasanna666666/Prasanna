@@ -22,6 +22,7 @@ MONEY_DOMAIN = next(
 CENT = Decimal("0.01")
 ONE_PLACE = Decimal("0.1")
 SUMMARY_PREFIX = "sum-"
+DUPLICATE_OF = "duplicate_of"  # set by the owner on a transaction they confirmed is another record imported twice: kept, never counted again
 
 
 class CalcError(ValueError):
@@ -41,6 +42,12 @@ class Tx:
     category: str
     merchant: str
     currency: str = ""  # ISO 4217; amounts of different currencies are never added together
+    duplicate_of: str = ""  # the record this one repeats, as the owner confirmed (UC-L23)
+
+    @property
+    def identity(self) -> tuple[str, Decimal, str, str, str]:
+        """What two records of the same transaction share: day, exact amount, currency, kind and the merchant without case or spacing."""
+        return (self.day, self.amount, self.currency, self.kind, " ".join(self.merchant.casefold().split()))
 
     @property
     def month(self) -> str:
@@ -52,6 +59,21 @@ class Tx:
 
 
 def transactions(records: Iterable[Record]) -> list[Tx]:
+    """The transactions every figure is computed from: each counted once. A record the owner confirmed as a duplicate of another is kept in the
+    store but left out here; a duplicate mark that does not name a counted record with the same day, amount, currency, kind and merchant is not
+    trusted, and the calculation refuses (`bad_duplicate`) rather than guess which figure is right (UC-L23)."""
+    every = all_transactions(records)
+    counted = {t.record_id: t for t in every if not t.duplicate_of}
+    for t in every:
+        if t.duplicate_of:
+            original = counted.get(t.duplicate_of)
+            if original is None or original.identity != t.identity:
+                raise CalcError("bad_duplicate")
+    return [t for t in every if not t.duplicate_of]
+
+
+def all_transactions(records: Iterable[Record]) -> list[Tx]:
+    """Every transaction record, confirmed duplicates included (what the store holds, for reconciliation and display)."""
     out = []
     for r in records:
         if r.domain != MONEY_DOMAIN or r.record_id.startswith(SUMMARY_PREFIX):
@@ -68,9 +90,20 @@ def transactions(records: Iterable[Record]) -> list[Tx]:
                 r.fields.get("category", "uncategorised") or "uncategorised",
                 r.fields.get("merchant", ""),
                 r.fields.get("currency", ""),
+                r.fields.get(DUPLICATE_OF, "") or "",
             )
         )
     return out
+
+
+def possible_duplicates(txs: Iterable[Tx]) -> list[list[str]]:
+    """Groups of counted transactions that look like one transaction recorded more than once (same day, exact amount, currency, kind and merchant).
+    They are reported, never removed: two equal purchases on one day are real, so only the owner can confirm a duplicate."""
+    groups: dict[tuple[str, Decimal, str, str, str], list[str]] = defaultdict(list)
+    for t in txs:
+        if not t.duplicate_of:
+            groups[t.identity].append(t.record_id)
+    return sorted(sorted(ids) for ids in groups.values() if len(ids) > 1)
 
 
 def _decimal_sum(values: Iterable[Decimal]) -> Decimal:
@@ -209,7 +242,10 @@ def verify_summary(summary: Record, records: Iterable[Record]) -> bool:
     if not summary.record_id.startswith(SUMMARY_PREFIX) or "computed by code from" not in note:
         return False
     named = [s.strip() for s in note.split(":", 1)[1].split(",")]
-    index = {t.record_id: t for t in transactions(records)}
+    try:
+        index = {t.record_id: t for t in transactions(records)}  # a confirmed duplicate is not a counted input
+    except CalcError:
+        return False
     if any(i not in index for i in named):
         return False
     month, category = summary.date[:7], summary.fields.get("category", "")

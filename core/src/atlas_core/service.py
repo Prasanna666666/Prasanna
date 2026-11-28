@@ -20,7 +20,7 @@ from .errors import CoreError, user_error
 from .events import SafeLog
 from .evidence import CitationError, SourceStore, resolve
 from .exact import ExactError, compute
-from .finance_calc import MONEY_DOMAIN, by_category, by_month, month_over_month, previous_month, transactions
+from .finance_calc import MONEY_DOMAIN, CalcError, by_category, by_month, month_over_month, possible_duplicates, previous_month, transactions
 from .gate import ContextBuilder, GatedModel, GatedRetrieval, ModelGateway, ModelUnavailable, Retriever, SourceLabels
 from .health_calc import HEALTH_DOMAIN, summarise
 from .policy import PermissionRevoked, PermitToken, PolicyEngine, PolicyViolation
@@ -587,7 +587,10 @@ class TaskService:
         _decision, token = d.policy.decide([MONEY_DOMAIN], d.clock())
         if token is None:
             return {"state": "denied", **blank}
-        result = self._finance_result(transactions(d.finance_records()), blank)
+        try:
+            result = self._finance_result(transactions(d.finance_records()), blank)
+        except CalcError as error:
+            result = {"state": "failed", **blank, "code": error.code}  # e.g. a duplicate mark that does not match its original: no figure is shown
         if MONEY_DOMAIN not in d.policy.revalidate(token, d.clock())[0]:
             return {"state": "denied", **blank}  # the final check, after the last read and the last calculation, immediately before delivery
         return result
@@ -612,6 +615,7 @@ class TaskService:
             "state": "ready",
             "currency": "EUR",
             "transaction_count": len(txs),
+            "possible_duplicates": possible_duplicates(txs),  # reported for the owner to confirm; every one of them is still counted
             "months": [{"month": m, "total": str(t)} for m, t in list(spending.items())[-12:]],
             "latest": latest,
             "computed_by_code": True,

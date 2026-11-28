@@ -13,6 +13,7 @@ from atlas_core.finance_calc import (
     by_month,
     cash_flow,
     month_over_month,
+    possible_duplicates,
     previous_month,
     recurring,
     summary_records,
@@ -161,3 +162,56 @@ def test_amounts_in_different_currencies_are_never_added_or_relabelled():
 def test_a_currency_that_is_not_an_iso_code_is_refused_at_the_record_boundary(bad):
     with pytest.raises(RecordError):
         Record("x", "finance", "2026-10-02", "t", {"amount": "1.00", "currency": bad, "kind": "expense"})
+
+
+def _dup(record: Record, of: str) -> Record:
+    return Record(record.record_id, record.domain, record.date, record.title, {**record.fields, "duplicate_of": of})
+
+
+def test_a_transaction_the_owner_confirmed_as_a_duplicate_is_kept_but_counted_once():
+    """UC-L23: the same purchase imported twice (two overlapping statements) is counted once once the owner confirms it; the duplicate record is
+    kept (the original is preserved, nothing is deleted) and is no input of any total or summary."""
+    first = tx("a1", "2026-10-05", "42.50", merchant="Albert Heijn")
+    again = _dup(tx("b7", "2026-10-05", "42.50", merchant="  albert   HEIJN "), "a1")
+    other = tx("a2", "2026-10-06", "10.00", merchant="Bakker")
+    counted = transactions([first, again, other])
+    assert [t.record_id for t in counted] == ["a1", "a2"] and total(counted) == Decimal("52.50")
+    assert by_month(counted) == {"2026-10": Decimal("52.50")}
+    [summary] = summary_records([first, again, other])
+    assert summary.fields["amount"] == "52.50" and "b7" not in summary.fields["note"] and verify_summary(summary, [first, again, other])
+
+
+def test_a_duplicate_mark_that_does_not_match_its_original_refuses_every_figure():
+    """A mark naming a missing record, a record with another amount, day or merchant, or another duplicate is not trusted: the calculation refuses
+    rather than silently drop a real transaction."""
+    first = tx("a1", "2026-10-05", "42.50", merchant="Albert Heijn")
+    for bad in (
+        _dup(tx("b7", "2026-10-05", "42.50", merchant="Albert Heijn"), "missing"),
+        _dup(tx("b7", "2026-10-05", "42.51", merchant="Albert Heijn"), "a1"),
+        _dup(tx("b7", "2026-10-06", "42.50", merchant="Albert Heijn"), "a1"),
+        _dup(tx("b7", "2026-10-05", "42.50", merchant="Jumbo"), "a1"),
+    ):
+        with pytest.raises(CalcError) as e:
+            transactions([first, bad])
+        assert e.value.code == "bad_duplicate"
+    chained = [
+        first,
+        _dup(tx("b7", "2026-10-05", "42.50", merchant="Albert Heijn"), "a1"),
+        _dup(tx("c9", "2026-10-05", "42.50", merchant="Albert Heijn"), "b7"),
+    ]
+    with pytest.raises(CalcError):
+        transactions(chained)  # a duplicate of a duplicate names no counted record
+
+
+def test_possible_duplicates_are_reported_for_the_owner_and_still_counted():
+    """Two equal purchases on one day can be real, so look-alikes are reported (same day, exact amount, currency, kind, merchant without case or
+    spacing) and never removed; a different amount, day or merchant is not a look-alike."""
+    rows = [
+        tx("a1", "2026-10-05", "42.50", merchant="Albert Heijn"),
+        tx("b7", "2026-10-05", "42.50", merchant="albert  heijn"),
+        tx("c1", "2026-10-05", "42.51", merchant="Albert Heijn"),
+        tx("d1", "2026-10-06", "42.50", merchant="Albert Heijn"),
+        tx("e1", "2026-10-05", "42.50", merchant="Jumbo"),
+    ]
+    counted = transactions(rows)
+    assert possible_duplicates(counted) == [["a1", "b7"]] and total(counted) == Decimal("212.51")

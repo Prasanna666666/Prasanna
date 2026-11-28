@@ -498,3 +498,25 @@ def test_a_hostile_calendar_invite_is_data_it_cannot_trigger_an_action_or_change
             store.close()
     finally:
         world.close()
+
+
+def test_the_finance_summary_counts_a_confirmed_duplicate_once_lists_look_alikes_and_refuses_a_bad_mark(tmp_path):
+    """UC-L23 over the signed API: a transaction imported twice and confirmed by the owner (`duplicate_of`) is kept and counted once; unconfirmed
+    look-alikes are listed for the owner and still counted; a mark that does not match its original withholds every figure (`failed`)."""
+    (tmp_path / "w").mkdir()
+    world = DomainWorld(tmp_path / "w")
+    twice = Record("f1b", "finance", "2026-10-15", "rent payment f1b", {**fin("f1", "2026-10-15", "412.30").fields, "duplicate_of": "f1"})
+    world.sources["finance"] = InMemoryRecords("finance", [*FINANCE, twice, fin("f4", "2026-10-17", "0.20", "tea")])
+    try:
+        core = started(world)
+        world.enable(core, "finance")
+        out = world.client().finance_summary()
+        assert out["state"] == "ready" and out["transaction_count"] == 5 and out["latest"]["total"] == "412.80"  # 412.30 once, plus tea 0.10 + 0.20 + 0.20
+        assert out["possible_duplicates"] == [["f3", "f4"]]
+        world.sources["finance"].put(
+            Record("f9", "finance", "2026-10-15", "rent payment f9", {**fin("f9", "2026-10-15", "999.00").fields, "duplicate_of": "f1"})
+        )
+        bad = world.client().finance_summary()
+        assert bad["state"] == "failed" and bad["code"] == "bad_duplicate" and bad["latest"] is None and bad["months"] == []
+    finally:
+        world.close()

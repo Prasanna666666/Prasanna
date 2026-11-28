@@ -78,7 +78,8 @@
         "kind",
         "category",
         "merchant",
-        "note"
+        "note",
+        "duplicate_of"
       ],
       "required": [
         "amount",
