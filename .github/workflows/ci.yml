@@ -144,6 +144,54 @@ jobs:
         run: |
           echo "pytest exited with status ${{ steps.tests.outputs.status }}" >&2
           exit 1
+  core-failure-paths:
+    # MAC-07: proves on a hosted runner that the core job's own commands (1) record a failing test's non-zero status and keep its log and JUnit
+    # report, and (2) reject a log carrying a personal-content sentinel so that it is not published. The failures are injected into scratch
+    # folders and asserted here, so this job is green when both guards behave and red when either does not.
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: core
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: pip install -e "../kit[secure]" -e ".[dev]"
+      - name: A failing test, run with the core job's exact command
+        id: failing
+        shell: bash
+        run: |
+          set -o pipefail
+          mkdir -p ../failpath/tests ../failpath/artefacts
+          printf 'def test_injected_failure():\n    assert False, "injected by core-failure-paths"\n' > ../failpath/tests/test_injected.py
+          status=0
+          pytest -q -p no:cacheprovider --rootdir ../failpath --junitxml=../failpath/artefacts/junit.xml ../failpath/tests 2>&1 | tee ../failpath/artefacts/pytest.log || status=$?
+          echo "status=$status" >> "$GITHUB_OUTPUT"
+      - name: The failing status is recorded and the report and log are kept
+        shell: bash
+        run: |
+          test "${{ steps.failing.outputs.status }}" != "0"
+          grep -q 'failures="1"' ../failpath/artefacts/junit.xml
+          grep -q "injected by core-failure-paths" ../failpath/artefacts/pytest.log
+          echo "failing test: status ${{ steps.failing.outputs.status }}, JUnit report and log preserved"
+      - name: A log carrying a sentinel is scanned with the core job's exact command
+        id: seeded
+        continue-on-error: true
+        run: |
+          mkdir -p ../seeded
+          python -c "import sys; sys.path.insert(0, 'tests'); from conftest import ALL_SENTINELS; open('../seeded/pytest.log', 'w').write('ok\n' + ALL_SENTINELS[0] + '\n')"
+          python tools/scan_artefacts.py ../seeded
+      - name: The scan rejected it, so the publication step would not run
+        shell: bash
+        run: |
+          test "${{ steps.seeded.outcome }}" = "failure"
+          echo "seeded log: scan outcome ${{ steps.seeded.outcome }}; the core job's upload runs only after a passing scan (default success() condition)"
+      - uses: actions/upload-artifact@v4
+        if: steps.seeded.outcome == 'success'  # the same rule as the core job: only a log that passed the scan is ever published
+        with:
+          name: seeded-log-must-never-appear
+          path: seeded
   macos:
     runs-on: macos-latest
     steps:
