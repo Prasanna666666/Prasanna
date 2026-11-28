@@ -576,7 +576,7 @@ V04_GAP_CLOSED = {
 
 # Rows whose credit rests on code or tests added after the scored revision: credited only once the scored revision contains that commit
 # (so no evidence is ever cited for a revision that does not hold it). "local" marks work not yet pushed.
-V04_LANDS_IN = {"UC-L22": "local", "UC-049": "29d0550", "UC-L14": "29d0550", "UC-L26": "29d0550", "S3-C08": "e8d8f3d", "UC-009": "22e7b70"}
+V04_LANDS_IN = {"UC-L22": "db98099", "UC-049": "29d0550", "UC-L14": "29d0550", "UC-L26": "29d0550", "S3-C08": "e8d8f3d", "UC-009": "22e7b70"}
 
 
 def _landed(cid: str) -> bool:

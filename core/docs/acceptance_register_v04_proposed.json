@@ -12472,7 +12472,7 @@
    },
    "recorded_status": "PARTIAL",
    "open_gap": "Japanese/unspaced-script retrieval is documented as a gap; target-model multilingual quality unmeasured.",
-   "v04_awaiting": "credited once the scored revision contains local: software complete; only device verification remains (split to the -DEV row)"
+   "v04_awaiting": "credited once the scored revision contains db98099: software complete; only device verification remains (split to the -DEV row)"
   },
   {
    "id": "UC-L23",
@@ -15117,6 +15117,61 @@
     "from cryptography.hazmat.primitives.ciphers.aead import AESGCM",
     "from pathlib import Path",
     "struct RootView: View {"
+   ]
+  },
+  {
+   "from": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+   "revision": "6c35e620517abfed7d45e42b2fd3b6c52afa50a3",
+   "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096694534",
+   "files": [
+    "app/Sources/AtlasApp/AtlasApp.swift",
+    "app/xcode/AtlasMacUITests/AccessibilityAuditTests.swift",
+    "core/docs/PROGRESS_TRACKER.md",
+    "core/docs/acceptance_register.json",
+    "core/docs/v04_checkpoint_evidence.json",
+    "core/evals/harness.py",
+    "core/evals/set_v2.json",
+    "core/evals/thresholds_proposed.json",
+    "core/src/atlas_core/backup.py",
+    "core/src/atlas_core/documents.py",
+    "core/src/atlas_core/mail.py",
+    "core/tests/test_backup.py",
+    "core/tests/test_client.py",
+    "core/tests/test_documents.py",
+    "core/tests/test_evals.py",
+    "core/tests/test_progress_tracker.py",
+    "core/tests/test_thresholds.py",
+    "scripts/build_acceptance_register.py"
+   ],
+   "changed_lines": 1616,
+   "function_contexts": [
+    "MAX_MALFORMED_ROWS = (",
+    "MIN_FREE_BYTES = 64 * 1024 * 1024  # below this much free disk, indexing pauses",
+    "V03_CHANGES = [",
+    "V04_REVIEW = (\"6574c2cb8dd23c9d1a3a7084c6aa1e207756900c\", \"https://github.com/Pr",
+    "def _remove_made(made: list[Path], target: Path, created_target: bool) -> None:",
+    "def apply_verdicts_0949851(criteria: list[dict]) -> list[dict]:",
+    "def crit(cid: str, stage, title: str, source_ref: str, pass_condition: str, evid",
+    "def main() -> int:",
+    "def report() -> dict:",
+    "def restore_backup(",
+    "def source_id_for(rel_path: str) -> str:",
+    "def test_a_backup_file_swapped_after_verification_is_caught_and_nothing_is_left_",
+    "def test_a_hindi_document_is_found_by_a_hindi_question(tmp_path):",
+    "def test_a_missing_answer_and_a_hallucinated_figure_are_shown_as_not_confirmed_n",
+    "def test_a_restore_goes_only_into_an_empty_place_and_a_failure_leaves_nothing_be",
+    "def test_a_restore_into_a_second_folder_never_orphans_the_working_installation(w",
+    "def test_a_restore_whose_key_staging_fails_leaves_no_files_and_the_working_keys_",
+    "def test_a_started_core_between_its_key_read_and_its_first_store_keeps_its_keys_",
+    "def test_duplicate_ids_and_colliding_aliases_are_flagged(progress):",
+    "def test_retrieval_and_answer_quality_are_reported_separately_per_language_and_s",
+    "def test_the_report_states_what_it_does_not_measure(report):",
+    "def test_the_synthetic_quality_thresholds_hold(report):",
+    "final class AccessibilityAuditTests: XCTestCase {",
+    "final class AppModel: ObservableObject {",
+    "from atlas_core.service import Deps, TaskService  # noqa: E402",
+    "from pathlib import Path",
+    "sys.path.insert(0, str(EVALS))"
    ]
   }
  ]
