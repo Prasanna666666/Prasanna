@@ -163,12 +163,6 @@ def test_the_recorded_measure_matches_the_tree_so_no_change_lands_without_its_up
     assert recorded == progress["markdown"](progress["measure"]()), "the tracker is stale: run scripts/progress.py --update"
 
 
-def test_the_v04_proposal_is_a_valid_register_whose_test_evidence_resolves(progress):
-    """The proposal file is published beside the agreed v0.3 register; it must be just as valid and every test it cites must exist."""
-    register = json.loads((ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json").read_text(encoding="utf-8"))
-    assert register["version"] == "0.4" and "PROPOSED" in register["status"] and progress["register_errors"](register["criteria"]) == []
-    for c in register["criteria"]:
-        for e in c["implementation"]["evidence"]:
-            if e["kind"] == "test":
-                path, name = e["ref"].split("::")
-                assert re.search(rf"\b(def|func) {name}\b", (ROOT / path).read_text(encoding="utf-8")), f"{c['id']}: {e['ref']}"
+def test_no_proposal_figure_is_published_beside_the_agreed_register():
+    """Owner direction (28 Nov): the agreed register is the only measure; the withdrawn v0.4 proposal file does not exist."""
+    assert not (ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json").exists()

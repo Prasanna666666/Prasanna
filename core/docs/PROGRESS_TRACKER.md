@@ -38,28 +38,16 @@ Record structure validated by the calculator: 218 of 218 scored criteria carry n
 
 First Mac milestone view (criteria tagged first-mac): implementation 13.5/19 (71.1%), review 15/19 (78.9%).
 
-Supporting inventory (git-tracked): 287 source files, 47,845 lines, 3035 functions; 211 test files, 1953 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 15 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 287 source files, 47,843 lines, 3035 functions; 211 test files, 1953 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 15 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->
 
-## Register v0.4 (PROPOSED, not agreed)
+## Register v0.4: withdrawn
 
-**Under the v0.4 proposal (provisional, `core/docs/acceptance_register_v04_proposed.json`): implementation 47.5% (103.5/218).** No row is full while its architect verdict is fail or pending (review 6097249161). The measure above is the agreed v0.3 register.
-Review 6096694534 asked for amendments to (a) (a named, measurable behaviour and test-to-assertion mapping per row) and (c) (each full claim reassessed; PRD-3-06 withdrawn, UC-L22 pending its schema upgrade evidence), accepted (b), (d) and (e).
-
-Proposed in comment 7235843033 at the owner's direction and built in this batch for Codex to review; **v0.3 stays the agreed baseline until
-Codex accepts v0.4 by SHA**, and every v0.4 figure above is provisional.
-- PRD and use-case rows marked PARTIAL get a checkpoint; 0.5 only from checkpoint-specific test evidence mapped in
-  `core/docs/v04_checkpoint_evidence.json` (exact tests that resolve, plus the hosted jobs that run them).
-- UC-033, UC-L16, PRD-4-07 and S3-C12 split into a scored software part and an excluded `-DEV` device part.
-- UC-041, UC-L09, PRD-5-05, PRD-5-01, PRD-3-06 and UC-L22 have complete software and only device or target-Mac verification left: the
-  software part is full from exact tests and the device part is a `-DEV` row. UC-L22's software gap (unspaced-script retrieval) is closed in
-  this batch (Han, Kana and Hangul indexed as overlapping pairs; evaluation set v2).
-- UC-L19 is full: its one recorded gap, ATLAS-CORE-092, was closed by MAC-11, MAC-12 and MAC-15, each architect-passed.
-- Stage 4-8 rows that name tests as `::test_name` or as a whole test file now resolve them (S6-X02, S6-X07, S7-X01, S7-X05, S8-X01, S8-X03).
-- A row whose credit rests on code or tests added after the scored revision (UC-L22, UC-049, UC-L14, UC-L26, S3-C08, UC-009) is credited only once
-  the scored revision contains that commit (`V04_LANDS_IN`), so no evidence is cited for a revision that does not hold it.
+Withdrawn by the owner on 28 Nov ("no half measures; don't tweak the numbers"). No proposal or provisional figure is published. The only measure
+is the agreed register above: a criterion counts when it is fully built, its exact tests pass in hosted CI at the scored revision, and the
+architect has passed it. Device-only checks stay excluded, as agreed.
 
 ## Register v0.3: scope, crosswalk and credit
 

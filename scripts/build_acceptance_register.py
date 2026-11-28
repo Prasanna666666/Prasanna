@@ -683,7 +683,6 @@ def main() -> int:
     criteria += conformance(ROOT / "docs" / "genesis" / "USE_CASE_CONFORMANCE.md", "UCX", "use-case")
     criteria += first_mac()
     criteria = apply_v03(criteria)
-    proposal = apply_v04(json.loads(json.dumps(criteria)))
     seen: dict[str, int] = {}
     for c in criteria:
         seen[c["id"]] = seen.get(c["id"], 0) + 1
@@ -708,9 +707,8 @@ def main() -> int:
     }
     OUT.write_text(json.dumps(register, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {len(criteria)} criteria to {OUT.relative_to(ROOT)}")
-    v04 = {**register, "version": "0.4", "status": "PROPOSED, not agreed (comment 7235843033; review 6096694534 asked for amendments to (a) and (c))", "changes_from_previous": CHANGES + V03_CHANGES + V04_CHANGES, "criteria": proposal}
-    OUT_V04.write_text(json.dumps(v04, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
-    print(f"wrote {len(proposal)} criteria to {OUT_V04.relative_to(ROOT)} (proposed)")
+    # Owner direction (28 Nov): no proposal figure is published; the only measure is the agreed register above (v0.4 withdrawn).
+    OUT_V04.unlink(missing_ok=True)
     return 0
 
 
