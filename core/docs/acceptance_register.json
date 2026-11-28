@@ -8862,7 +8862,7 @@
    },
    "recorded_status": "PARTIAL",
    "open_gap": "AppModel now clears the previous ID and queues Stop requests made before the new ID returns; helper regression tests are present, but exact-head CI and an AppModel-level integration test remain pending (ATLAS-APP-052).",
-   "v04_awaiting": "credited once the scored revision contains local: the app model's question flow now lives in AtlasKit (QuestionRunner) and is tested against a scripted Core at every Stop timing; a cancelled or expired task's answer is never fetched, so it is never shown as Failed"
+   "v04_awaiting": "credited once the scored revision contains 22e7b70: the app model's question flow now lives in AtlasKit (QuestionRunner) and is tested against a scripted Core at every Stop timing; a cancelled or expired task's answer is never fetched, so it is never shown as Failed"
   },
   {
    "id": "UC-010",
