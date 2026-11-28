@@ -23,11 +23,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
-CI_REVISION = "d528055ec8756d8d55efe2f104cfe929c7bf8cb1"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127"
+OUT_V04 = ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json"
+CI_REVISION = "6c35e620517abfed7d45e42b2fd3b6c52afa50a3"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46121860506"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140883255575", "core-3.13": f"{CI_RUN}/job/140883255649", "kit": f"{CI_RUN}/job/140883255527",
-    "macos": f"{CI_RUN}/job/140883255653", "app": f"{CI_RUN}/job/140883255744", "ios": f"{CI_RUN}/job/140883255380",
+    "core-3.11": f"{CI_RUN}/job/140907912736", "core-3.13": f"{CI_RUN}/job/140907912703", "kit": f"{CI_RUN}/job/140907912724",
+    "macos": f"{CI_RUN}/job/140907912750", "app": f"{CI_RUN}/job/140907912746", "ios": f"{CI_RUN}/job/140907912735",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
@@ -36,6 +37,9 @@ V05_REVIEW = ("e23b04bff48c2c3d79976b50921f86d91a3c46ce", "https://github.com/Pr
 V06_REVIEW = ("a3c7f7d009ff70d7feda917d5d4a3ea9dc030e71", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095269004", "6095269004")
 V07_REVIEW = ("09498515beefed3e90feac0e201722822df4a6f5", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095905696", "6095905696")
 V08_REVIEW = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096381812", "6096381812")
+AUDIT1 = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7235875772", "7235875772")
+AUDIT2 = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7235938220", "7235938220")
+V09_REVIEW = ("6c35e620517abfed7d45e42b2fd3b6c52afa50a3", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096694534", "6096694534")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -410,6 +414,41 @@ def apply_verdicts_d528055(criteria: list[dict]) -> list[dict]:
     by["MAC-17"]["review"] = _verdict(V08_REVIEW, "fail", note="startup and in-progress restore windows closed; failure cleanup can still unlink the lock pathname while the reservation holds the inode")
     by["MAC-08"]["review"] = _verdict(V08_REVIEW, "fail", note="bisect the Dark-only difference one modifier at a time; verify the Light reproduction on a second supported hosted macOS configuration")
     by["MAC-06"]["review"] = _verdict(V08_REVIEW, "fail", note="the required Mac UI job failed")
+    return apply_verdicts_6c35e62(criteria)
+
+
+AUDITED = {  # criterion: (verdict source, the exact tests the architect named as passing)
+    "S3-C13-REF": (AUDIT1, [("core/tests/test_client.py", "test_a_question_is_answered_with_progress_citations_model_identity_and_coverage"), ("core/tests/test_client.py", "test_the_cited_passage_can_be_opened_exactly_and_stops_opening_when_the_source_changes_or_is_revoked"), ("core/tests/test_client.py", "test_every_value_of_every_closed_vocabulary_has_a_message")]),
+    "S3-C14": (AUDIT1, [("core/tests/test_stage3_acceptance.py", "test_every_criterion_is_present_with_evidence_status_and_limitation"), ("core/tests/test_stage3_acceptance.py", "test_every_test_named_in_the_stage_3_documents_exists")]),
+    "S3-C15": (AUDIT1, [("core/tests/test_tasks.py", "test_no_source_file_names_an_existing_database_or_writes_outside_its_own_store"), ("core/tests/test_tasks.py", "test_the_task_store_is_a_new_encrypted_file_with_its_own_key_and_nothing_else_is_touched")]),
+    "S5-X03": (AUDIT1, [("core/tests/test_domains.py", "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it"), ("core/tests/test_health.py", "test_a_permission_reset_withdraws_every_grant_and_purges_what_was_derived")]),
+    "S5-X06": (AUDIT1, [("core/tests/test_recordstore.py", "test_undo_restores_exactly_and_only_the_latest_change"), ("core/tests/test_recordstore.py", "test_deleting_is_soft_and_undoable_and_the_history_keeps_everything"), ("core/tests/test_actions.py", "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone")]),
+    "S6-X01": (AUDIT1, [("core/tests/test_actions.py", "test_the_action_matrix_only_the_four_categories_ever_need_approval"), ("core/tests/test_actions.py", "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone")]),
+    "S6-X02": (AUDIT1, [("core/tests/test_actions.py", "test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use"), ("core/tests/test_actions.py", "test_an_approval_expires_and_cannot_be_granted_after_use")]),
+    "S7-X02": (AUDIT1, [("core/tests/test_health.py", "test_health_names_each_check_and_reports_codes_not_content"), ("core/tests/test_health.py", "test_diagnostics_hold_no_question_passage_file_name_key_or_home_path"), ("core/tests/test_health.py", "test_redaction_is_a_second_line_of_defence_for_anything_that_slipped_in")]),
+    "S7-X03": (AUDIT1, [("core/tests/test_health.py", "test_a_permission_reset_withdraws_every_grant_and_purges_what_was_derived")]),
+    "S4-X04": (AUDIT2, [("core/tests/test_backup.py", "test_a_restore_drill_proves_a_backup_and_only_then_may_the_restricted_domains_be_designated")]),
+    "S6-X03": (AUDIT2, [("core/tests/test_actions.py", "test_instructions_in_content_can_neither_propose_nor_approve"), ("core/tests/test_browser_watchers.py", "test_page_text_is_untrusted_data_and_whatever_it_asks_for_is_refused")]),
+    "S6-X06": (AUDIT2, [("core/tests/test_actions.py", "test_the_audit_is_chained_content_free_and_tampering_is_detected"), ("core/tests/test_actions.py", "test_the_audit_is_written_to_disk_before_the_outcome_continues_after_a_restart_and_a_damaged_file_stops_the_actions"), ("core/tests/test_operations_api.py", "test_a_damaged_audit_file_means_the_core_serves_no_actions_at_all")]),
+    "S8-X02": (AUDIT2, [("core/tests/test_devices.py", "test_no_module_of_the_core_binds_an_internet_address_or_opens_a_public_port"), ("core/tests/test_relay.py", "test_the_relay_will_only_listen_on_a_private_or_vpn_address")]),
+    "MAC-17": (V09_REVIEW, [("core/tests/test_backup.py", "test_a_failed_restore_never_unlinks_the_folder_lock_it_holds"), ("core/tests/test_backup.py", "test_no_core_can_start_on_a_partly_restored_folder"), ("core/tests/test_backup.py", "test_a_started_core_between_its_key_read_and_its_first_store_keeps_its_keys_from_any_restore"), ("core/tests/test_backup.py", "test_a_commit_point_whose_write_succeeded_but_could_not_be_confirmed_keeps_the_restored_files"), ("core/tests/test_macos.py", "test_first_provisioning_never_overwrites_a_key_a_competing_start_added_in_between")]),
+    "UC-L19": (V09_REVIEW, [("core/tests/test_designation.py", "test_the_platform_taking_a_granted_permission_back_revokes_the_grant_and_purges"), ("core/tests/test_domains.py", "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it"), ("core/tests/test_api.py", "test_a_grant_withdrawn_at_the_last_read_before_delivery_still_removes_the_result"), ("core/tests/test_api.py", "test_a_citation_text_is_not_delivered_when_the_grant_is_withdrawn_while_it_is_being_read"), ("core/tests/test_domains.py", "test_a_summary_is_withheld_when_its_domain_is_withdrawn_while_the_records_are_being_read")]),
+}
+
+
+def apply_verdicts_6c35e62(criteria: list[dict]) -> list[dict]:
+    """The architect's two supplementary evidence audits at d528055 (comments 7235875772 and 7235938220) and the review of 6c35e62 (review
+    6096694534): each explicit pass with the exact tests it names, the explicit fails, and the checkpoints it found met."""
+    by = {c["id"]: c for c in criteria}
+    for cid, (source, refs) in AUDITED.items():
+        by[cid]["implementation"] = {"state": "full", "evidence": [{**test(p, n), "proves": "full"} for p, n in refs] + [{**ci(j), "proves": "full"} for j in ("core-3.11", "core-3.13")]}
+        by[cid]["review"] = _verdict(source, "pass")
+    by["MAC-08"]["review"] = _verdict(V09_REVIEW, "fail", note="a real-screen Dark fix and a comparison on another supported hosted macOS/Xcode combination are needed; keep the gate")
+    by["MAC-06"]["review"] = _verdict(V09_REVIEW, "fail", note="the required mac-ui job failed")
+    for cid in ("S6-X07", "S7-X01", "S7-X05", "S8-X01", "S8-X03"):
+        by[cid]["review"] = _verdict(V09_REVIEW, "pending", note="the predefined Core checkpoint is met (all cited tests passed in exact-head Core JUnit); full credit needs the remaining stage evidence")
+    for cid, note in (("UC-L22", "needs a schema 2 to 3 reopen test for Documents and Mail with search and citation from existing records, and interruption or retry evidence"), ("MAC-07", "option (i) chosen; a hosted synthetic contract test of the real test/scan/upload/final-status path is needed"), ("UC-009", "hosted AppModel tests for durable Cancelled across Stop timings"), ("MAC-20", "hosted AppModel tests for truthful incomplete coverage and clearing displayed results on withdrawal")):
+        by[cid]["review"] = _verdict(V09_REVIEW, "pending", note=note)
     return criteria
 
 
@@ -462,13 +501,7 @@ V04_DEVICE_ONLY_GAPS["PRD-5-01"] = ("latency, memory and thermal results on the 
     ("core/tests/test_intelligence.py", "test_a_waiting_interactive_request_holds_back_new_background_work"),
     ("core/tests/test_thresholds.py", "test_the_real_model_thresholds_are_proposed_and_clearly_not_enforced"),
 ])
-V04_DEVICE_ONLY_GAPS["PRD-3-06"] = ("the owner's selected model, quantisation, context and quality on the target Mac", [
-    ("core/tests/test_intelligence.py", "test_default_uses_the_primary_and_the_answer_carries_its_identity"),
-    ("core/tests/test_intelligence.py", "test_the_gate_remains_the_only_door_and_the_identity_survives_it"),
-    ("core/tests/test_intelligence.py", "test_routing_ignores_the_question_text_and_is_deterministic"),
-    ("core/tests/test_api_v11.py", "test_a_1_1_answer_carries_coverage_model_and_the_echo_header"),
-    ("core/tests/test_api_v11.py", "test_a_withheld_1_1_answer_reports_no_coverage_of_the_revoked_source_and_no_model"),
-])
+# PRD-3-06 withdrawn from full credit (review 6096694534): real-model injection can be investigated on supported hosted hardware.
 V04_DEVICE_ONLY_GAPS["UC-047"] = ("the real Apple Mail store, account and version on the owner's Mac", [
     ("core/tests/test_mail.py", "test_a_sender_or_date_written_in_the_body_is_never_the_stored_sender_or_date"),
 ])
@@ -543,7 +576,7 @@ V04_GAP_CLOSED = {
 
 # Rows whose credit rests on code or tests added after the scored revision: credited only once the scored revision contains that commit
 # (so no evidence is ever cited for a revision that does not hold it). "local" marks work not yet pushed.
-V04_LANDS_IN = {"UC-L22": "6c35e620517abfed7d45e42b2fd3b6c52afa50a3", "UC-049": "29d0550", "UC-L14": "29d0550", "UC-L26": "29d0550", "S3-C08": "e8d8f3d", "UC-009": "22e7b70"}
+V04_LANDS_IN = {"UC-L22": "local", "UC-049": "29d0550", "UC-L14": "29d0550", "UC-L26": "29d0550", "S3-C08": "e8d8f3d", "UC-009": "22e7b70"}
 
 
 def _landed(cid: str) -> bool:
@@ -612,15 +645,16 @@ def main() -> int:
     criteria += conformance(ROOT / "docs" / "genesis" / "PRD_CONFORMANCE.md", "PRD", "prd")
     criteria += conformance(ROOT / "docs" / "genesis" / "USE_CASE_CONFORMANCE.md", "UCX", "use-case")
     criteria += first_mac()
-    criteria = apply_v04(apply_v03(criteria))
+    criteria = apply_v03(criteria)
+    proposal = apply_v04(json.loads(json.dumps(criteria)))
     seen: dict[str, int] = {}
     for c in criteria:
         seen[c["id"]] = seen.get(c["id"], 0) + 1
         if seen[c["id"]] > 1:
             c["id"] = f"{c['id']}.{seen[c['id']]}"
     register = {
-        "version": "0.4",
-        "status": "PROPOSED, not agreed: v0.4 awaits Codex's decision (comment 7235843033); v0.3 is the agreed baseline (review 6093596586)",
+        "version": "0.3",
+        "status": "agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); v0.4 is proposed separately in acceptance_register_v04_proposed.json",
         "scored_revision": CI_REVISION,
         "rules": "PR #8 comment 7226542434 (scoring) and 7226926847 (schedule protocol)",
         "scoring": {"full": 1.0, "checkpoint": 0.5, "none": 0.0},
@@ -630,13 +664,16 @@ def main() -> int:
             "aggregate": "composed of other criteria: scored through them only",
             "boundary": "a scope guard that is already true: not a deliverable",
         },
-        "changes_from_previous": CHANGES + V03_CHANGES + V04_CHANGES,
+        "changes_from_previous": CHANGES + V03_CHANGES,
         "decisions": DECISIONS,
         "criteria": criteria,
         "review_batches": previous.get("review_batches", []),
     }
     OUT.write_text(json.dumps(register, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {len(criteria)} criteria to {OUT.relative_to(ROOT)}")
+    v04 = {**register, "version": "0.4", "status": "PROPOSED, not agreed (comment 7235843033; review 6096694534 asked for amendments to (a) and (c))", "changes_from_previous": CHANGES + V03_CHANGES + V04_CHANGES, "criteria": proposal}
+    OUT_V04.write_text(json.dumps(v04, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+    print(f"wrote {len(proposal)} criteria to {OUT_V04.relative_to(ROOT)} (proposed)")
     return 0
 
 

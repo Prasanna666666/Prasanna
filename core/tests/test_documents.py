@@ -591,3 +591,45 @@ def test_unspaced_scripts_are_indexed_as_overlapping_pairs_so_a_japanese_questio
     assert _tokens("請求書 支払総額: 5800円 Invoice total") == ["請求", "求書", "支払", "払総", "総額", "5800", "円", "invoice", "total"]
     assert {"支払", "総額"} <= set(terms("支払総額はいくらですか")) and "円" not in terms("5800円")
     assert terms("합계 금액") == ["금액", "합계"] and terms("What is the total due?") == ["due", "is", "the", "total", "what"]
+
+
+def _as_schema_2(index: Any, texts: list[tuple[str, str]]) -> None:
+    """Rewrite an index as the previous version left it: postings made with whole-word tokens (an unspaced sentence is one token) at schema 2."""
+    conn = index._conn
+    conn.execute("BEGIN IMMEDIATE")
+    conn.execute("DELETE FROM postings")
+    for key, text in texts:
+        old = {w for w in documents._WORD.findall((text or "").lower()) if len(w) >= documents.MIN_WORD}
+        conn.executemany("INSERT OR IGNORE INTO postings (term, key) VALUES (?,?)", [(w, key) for w in old])
+    conn.execute("PRAGMA user_version = 2")
+    conn.execute("COMMIT")
+
+
+def test_a_schema_2_documents_index_is_upgraded_on_open_and_an_interrupted_upgrade_is_retried(tmp_path, monkeypatch):
+    """UC-L22 (review 6096694534): an index written by the previous version (schema 2, whole-word postings) does not find a Japanese document;
+    reopened by this version its postings are rebuilt from the records it already holds, so the same question finds it with a citation that
+    resolves. An upgrade interrupted halfway rolls back whole (still schema 2) and is completed by the next open."""
+    index = make(tmp_path, {"請求書.txt": "請求書 2026-03\n\n支払総額は5800円です。"})
+    build(index)
+    _as_schema_2(index, [(r[0], r[1]) for r in index._conn.execute("SELECT rel_path, text FROM docs WHERE status='indexed'")])
+    assert list(index.search("documents", "支払総額はいくらですか")) == []  # the old postings cannot find it
+    index.close()
+    calls = {"n": 0}
+    real_post = documents.IndexStore._post
+
+    def failing_post(self, key, text):
+        calls["n"] += 1
+        raise OSError("interrupted during the upgrade")
+
+    monkeypatch.setattr(documents.IndexStore, "_post", failing_post)
+    with pytest.raises(OSError):
+        DocumentIndex(tmp_path / "index.db", KEY, tmp_path / "docs", "documents", access=AllowAll())
+    monkeypatch.setattr(documents.IndexStore, "_post", real_post)
+    again = DocumentIndex(tmp_path / "index.db", KEY, tmp_path / "docs", "documents", access=AllowAll())
+    try:
+        assert calls["n"] >= 1 and again._conn.execute("PRAGMA user_version").fetchone()[0] == documents.SCHEMA_VERSION
+        found = list(again.search("documents", "支払総額はいくらですか"))
+        assert found and "5800" in found[0]["text"]
+        assert resolve(found[0]["evidence"], again) == found[0]["text"]  # the citation still resolves exactly into the stored text
+    finally:
+        again.close()

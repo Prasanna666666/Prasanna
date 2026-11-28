@@ -880,3 +880,42 @@ def test_more_malformed_entries_than_can_be_recorded_still_never_look_complete(t
     index, _ = make(tmp_path, mailbox)
     cov = build(index)
     assert cov["failed"] == 3 and cov["scan_complete"] is False and cov["complete"] is False  # (the rest are counted only as 'not everything was admitted')
+
+
+def test_a_schema_2_mail_index_is_upgraded_on_open_and_an_interrupted_upgrade_is_retried(tmp_path, monkeypatch):
+    """UC-L22 (review 6096694534), Mail: a schema 2 index (whole-word postings) cannot find a Japanese message; reopened by this version it is
+    rebuilt from the stored messages, so the question finds it with a citation that resolves; an upgrade interrupted halfway rolls back whole and
+    the next open completes it."""
+    from test_documents import _as_schema_2
+
+    from atlas_core import documents
+    from atlas_core.evidence import resolve
+
+    message = {
+        "message_id": "msg-ja@example.invalid",
+        "sender": "billing@example.invalid",
+        "date": "2026-03-14T09:30:00+00:00",
+        "subject": "請求書",
+        "body": "支払総額は5800円です。",
+    }
+    index, mailbox = make(tmp_path, box(message))
+    build(index)
+    _as_schema_2(index, list(index._texts()))
+    assert list(index.search(MAIL, "支払総額はいくらですか")) == []
+    index.close()
+
+    def failing_post(self, key, text):
+        raise OSError("interrupted during the upgrade")
+
+    real_post = documents.IndexStore._post
+    monkeypatch.setattr(documents.IndexStore, "_post", failing_post)
+    with pytest.raises(OSError):
+        MailIndex(tmp_path / "mail.db", KEY, mailbox, MAIL, access=AllowAll())
+    monkeypatch.setattr(documents.IndexStore, "_post", real_post)
+    again = MailIndex(tmp_path / "mail.db", KEY, mailbox, MAIL, access=AllowAll())
+    try:
+        assert again._conn.execute("PRAGMA user_version").fetchone()[0] == documents.SCHEMA_VERSION
+        found = list(again.search(MAIL, "支払総額はいくらですか"))
+        assert found and "5800" in found[0]["text"] and resolve(found[0]["evidence"], again) == found[0]["text"]
+    finally:
+        again.close()

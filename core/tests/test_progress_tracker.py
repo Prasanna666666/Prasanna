@@ -145,7 +145,7 @@ def test_duplicate_ids_and_colliding_aliases_are_flagged(progress):
 
 def test_the_register_has_stable_unique_ids_complete_criteria_and_resolvable_test_evidence(progress):
     register = json.loads((ROOT / "core" / "docs" / "acceptance_register.json").read_text(encoding="utf-8"))
-    assert register["version"] == "0.4" and progress["register_errors"](register["criteria"]) == []
+    assert register["version"] == "0.3" and progress["register_errors"](register["criteria"]) == []
     for c in register["criteria"]:
         assert c["pass_condition"] and c["required_evidence"] and c["source_ref"] and c["scope"] in register["scopes"], c["id"]
         assert set(c["owners"]) == {"implementation", "verdict", "sign_off"}, c["id"]
@@ -161,3 +161,14 @@ def test_the_recorded_measure_matches_the_tree_so_no_change_lands_without_its_up
     tracker = (ROOT / "core" / "docs" / "PROGRESS_TRACKER.md").read_text(encoding="utf-8")
     recorded = tracker.split("<!-- measure:start -->\n", 1)[1].split("\n<!-- measure:end -->", 1)[0]
     assert recorded == progress["markdown"](progress["measure"]()), "the tracker is stale: run scripts/progress.py --update"
+
+
+def test_the_v04_proposal_is_a_valid_register_whose_test_evidence_resolves(progress):
+    """The proposal file is published beside the agreed v0.3 register; it must be just as valid and every test it cites must exist."""
+    register = json.loads((ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json").read_text(encoding="utf-8"))
+    assert register["version"] == "0.4" and "PROPOSED" in register["status"] and progress["register_errors"](register["criteria"]) == []
+    for c in register["criteria"]:
+        for e in c["implementation"]["evidence"]:
+            if e["kind"] == "test":
+                path, name = e["ref"].split("::")
+                assert re.search(rf"\b(def|func) {name}\b", (ROOT / path).read_text(encoding="utf-8")), f"{c['id']}: {e['ref']}"
