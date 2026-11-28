@@ -1,7 +1,7 @@
 {
  "version": "0.3",
  "status": "agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); the v0.4 proposal was withdrawn by the owner (28 Nov) and this is the only measure",
- "scored_revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+ "scored_revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
  "rules": "PR #8 comment 7226542434 (scoring) and 7226926847 (schedule protocol)",
  "scoring": {
   "full": 1.0,
@@ -71,7 +71,7 @@
     "evidence": [
      {
       "kind": "doc",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "docs/genesis/PRD.md, TARGET_ARCHITECTURE.md, USE_CASE_REGISTER.md, INTERNET_AND_NETWORK_POLICY.md, DELIVERY_PROTOCOL.md",
       "proves": "checkpoint"
      }
@@ -108,7 +108,7 @@
     "evidence": [
      {
       "kind": "doc",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "docs/genesis/STAGE-3-BASELINE-AUDIT.md",
       "proves": "full"
      }
@@ -145,7 +145,7 @@
     "evidence": [
      {
       "kind": "carry_forward",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "from_revision": "58210223398a5715b618d1163397104efd358d49",
       "ref": "Stage 2 accepted at 5821022 (22/22 CI); its tests run unchanged in the candidate's core jobs",
       "link": "https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7047659436",
@@ -153,17 +153,17 @@
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -179,8 +179,8 @@
     "carry_forward": {
      "scope": "portable engineering scope only",
      "candidate_evidence": [
-      "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
-      "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780"
+      "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
+      "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719"
      ],
      "applies_while": "the Stage 2 tests run unchanged in the candidate's Core jobs"
     }
@@ -241,65 +241,65 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_designation.py::test_a_fresh_install_enables_nothing_and_everything_is_denied",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_designation.py::test_no_folder_byte_is_touched_unless_consent_and_the_platform_permission_are_both_current",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_mail.py::test_with_nothing_enabled_no_adapter_call_is_made_by_any_step",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_documents.py::test_without_a_grant_nothing_is_searched_or_read",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_app.py::test_nothing_is_read_or_answered_until_the_owner_enables_a_source",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_mail.py::test_a_documents_grant_never_implies_mail_and_each_type_is_judged_on_its_own",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_consent_api.py::test_only_an_enrolled_owner_client_may_read_or_change_consent_and_any_client_may_read_index_counts",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_consent_api.py::test_a_replayed_request_changes_nothing",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -312,42 +312,42 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_designation.py::test_a_fresh_install_enables_nothing_and_everything_is_denied"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_designation.py::test_no_folder_byte_is_touched_unless_consent_and_the_platform_permission_are_both_current"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mail.py::test_with_nothing_enabled_no_adapter_call_is_made_by_any_step"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_documents.py::test_without_a_grant_nothing_is_searched_or_read"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_app.py::test_nothing_is_read_or_answered_until_the_owner_enables_a_source"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mail.py::test_a_documents_grant_never_implies_mail_and_each_type_is_judged_on_its_own"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_consent_api.py::test_only_an_enrolled_owner_client_may_read_or_change_consent_and_any_client_may_read_index_counts"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_consent_api.py::test_a_replayed_request_changes_nothing"
     }
    ]
@@ -386,37 +386,37 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_designation.py::test_withdrawing_consent_revokes_at_once_purges_and_a_regrant_is_a_new_identity"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_designation.py::test_consent_withdrawn_during_a_task_stops_the_next_read_and_the_model"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_retention.py::test_purge_removes_the_content_of_a_revoked_type_from_answers_events_and_checkpoints_and_is_idempotent"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_retention.py::test_a_regrant_does_not_bring_purged_content_back"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_revoking_a_source_hides_the_answer_with_an_explanation"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_app.py::test_withdrawing_consent_purges_the_index_and_everything_tasks_derived_from_it"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_app.py::test_the_os_taking_its_permission_back_ends_the_grant_and_purges"
     }
    ],
@@ -454,35 +454,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_documents.py::test_a_changed_or_deleted_file_fails_closed_and_old_citations_stop_resolving",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_mail.py::test_a_changed_or_deleted_message_fails_closed_and_old_citations_stop_resolving",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_evals.py::test_every_case_behaves_as_specified_through_the_real_pipeline",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -495,17 +495,17 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_documents.py::test_a_changed_or_deleted_file_fails_closed_and_old_citations_stop_resolving"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mail.py::test_a_changed_or_deleted_message_fails_closed_and_old_citations_stop_resolving"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_evals.py::test_every_case_behaves_as_specified_through_the_real_pipeline"
     }
    ]
@@ -542,22 +542,22 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mail.py::test_hostile_instructions_in_a_message_change_no_scope_no_grant_and_trigger_nothing"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_documents.py::test_instructions_inside_a_document_are_data_not_commands"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mlx_runtime.py::test_the_prompt_marks_passages_as_untrusted_data_and_numbers_them"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_evals.py::test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded"
     }
    ]
@@ -588,53 +588,53 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_policy.py::test_an_owner_authorised_finance_task_lets_the_local_model_read_finance_and_nothing_else",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_policy.py::test_a_restricted_domain_needs_its_own_grant_with_a_restricted_ceiling",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_policy.py::test_a_task_authorised_for_one_restricted_domain_never_reaches_the_other",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_policy.py::test_revoking_a_finance_grant_ends_the_authority_before_anything_more_is_read_or_sent",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_evals.py::test_the_set_covers_english_dutch_and_non_latin_scripts_and_every_required_category",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_no_question_or_source_content_reaches_any_log_or_output_on_normal_failure_cancel_and_revocation_paths",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -647,32 +647,32 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_policy.py::test_an_owner_authorised_finance_task_lets_the_local_model_read_finance_and_nothing_else"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_policy.py::test_a_restricted_domain_needs_its_own_grant_with_a_restricted_ceiling"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_policy.py::test_a_task_authorised_for_one_restricted_domain_never_reaches_the_other"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_policy.py::test_revoking_a_finance_grant_ends_the_authority_before_anything_more_is_read_or_sent"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_evals.py::test_the_set_covers_english_dutch_and_non_latin_scripts_and_every_required_category"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_no_question_or_source_content_reaches_any_log_or_output_on_normal_failure_cancel_and_revocation_paths"
     }
    ]
@@ -703,59 +703,59 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_macos.py::test_not_one_attachment_byte_is_read_even_when_it_lies_within_the_same_4k_window_as_the_text",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_macos.py::test_an_attachment_before_the_text_makes_the_message_unreadable_and_its_payload_is_never_read",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_macos.py::test_a_header_block_is_read_up_to_its_blank_line_and_no_prefetch_reaches_the_payload_behind_it",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_macos.py::test_listing_reads_exactly_the_count_line_and_the_headers_and_not_the_body",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_mail.py::test_attachments_and_any_extra_field_are_never_stored_listed_searched_or_counted",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_mail.py::test_the_core_never_touches_the_attachments_of_a_fixture",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_mail.py::test_a_question_is_answered_from_the_mailbox_with_a_citation_to_the_exact_body_span",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -773,37 +773,37 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_macos.py::test_not_one_attachment_byte_is_read_even_when_it_lies_within_the_same_4k_window_as_the_text"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_macos.py::test_an_attachment_before_the_text_makes_the_message_unreadable_and_its_payload_is_never_read"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_macos.py::test_a_header_block_is_read_up_to_its_blank_line_and_no_prefetch_reaches_the_payload_behind_it"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_macos.py::test_listing_reads_exactly_the_count_line_and_the_headers_and_not_the_body"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mail.py::test_attachments_and_any_extra_field_are_never_stored_listed_searched_or_counted"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mail.py::test_the_core_never_touches_the_attachments_of_a_fixture"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_mail.py::test_a_question_is_answered_from_the_mailbox_with_a_citation_to_the_exact_body_span"
     }
    ]
@@ -840,42 +840,42 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_exact.py::test_arithmetic_is_exact_not_float"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_exact.py::test_month_arithmetic_clamps_and_says_so"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_exact.py::test_conversion_refuses_unknown_and_mixed_dimensions"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_exact.py::test_compute_results_have_the_contract_shape_and_say_when_a_value_is_not_a_finite_decimal"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_exact.py::test_terminating_decimal_keeps_all_digits_beyond_decimal_context"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_api_v11.py::test_the_compute_route_is_1_1_only_exact_validated_and_leaks_nothing"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_exact_computations_go_through_the_signed_contract_and_never_through_a_model"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_evals.py::test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded"
     }
    ]
@@ -906,59 +906,59 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_tasks.py::test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_a_crash_in_the_middle_of_indexing_resumes_to_the_same_index",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_retention.py::test_a_cancel_racing_a_run_ends_in_exactly_one_consistent_terminal_state",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_retention.py::test_concurrent_submits_with_one_idempotency_key_create_one_task",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_app.py::test_a_construction_that_fails_partway_closes_every_store_it_had_opened_and_releases_the_folder",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_app.py::test_an_index_whose_constructor_fails_after_opening_its_database_closes_it_and_the_core_restarts",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -976,27 +976,27 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_tasks.py::test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_a_crash_in_the_middle_of_indexing_resumes_to_the_same_index"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_retention.py::test_a_cancel_racing_a_run_ends_in_exactly_one_consistent_terminal_state"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_retention.py::test_concurrent_submits_with_one_idempotency_key_create_one_task"
     }
    ]
@@ -1027,53 +1027,53 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_artefact_scan.py::test_the_scanner_passes_clean_artefacts_and_fails_on_any_sentinel_without_printing_it",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_artefact_scan.py::test_the_ci_core_job_saves_its_artefacts_scans_them_and_uploads_them",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_redaction.py::test_a_normal_run_over_documents_and_mail_writes_no_content",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_no_question_or_source_content_reaches_any_log_or_output_on_normal_failure_cancel_and_revocation_paths",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_rejection_and_failure_reasons_of_the_model_layer_carry_no_path_or_content",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_random_malformed_requests_never_crash_the_api_leak_content_or_return_a_server_error",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -1086,32 +1086,32 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_artefact_scan.py::test_the_scanner_passes_clean_artefacts_and_fails_on_any_sentinel_without_printing_it"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_artefact_scan.py::test_the_ci_core_job_saves_its_artefacts_scans_them_and_uploads_them"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_redaction.py::test_a_normal_run_over_documents_and_mail_writes_no_content"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_no_question_or_source_content_reaches_any_log_or_output_on_normal_failure_cancel_and_revocation_paths"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_rejection_and_failure_reasons_of_the_model_layer_carry_no_path_or_content"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_random_malformed_requests_never_crash_the_api_leak_content_or_return_a_server_error"
     }
    ]
@@ -1142,47 +1142,47 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_client.py::test_every_value_of_every_closed_vocabulary_has_a_message",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_client.py::test_an_unavailable_model_is_reported_in_plain_words_without_a_trace",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_a_half_built_index_gives_an_answer_that_says_indexing_is_incomplete",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_reliability.py::test_disk_pressure_pauses_indexing_and_says_so_then_resumes",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api_v11.py::test_coverage_states_are_honest_and_tie_to_limitations",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -1195,27 +1195,27 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_every_value_of_every_closed_vocabulary_has_a_message"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_an_unavailable_model_is_reported_in_plain_words_without_a_trace"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_a_half_built_index_gives_an_answer_that_says_indexing_is_incomplete"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_disk_pressure_pauses_indexing_and_says_so_then_resumes"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_api_v11.py::test_coverage_states_are_honest_and_tie_to_limitations"
     }
    ]
@@ -1252,107 +1252,107 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_architecture.py::test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_egress.py::test_a_query_with_private_content_or_an_identifier_is_refused_before_anything_is_sent"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_egress.py::test_a_task_with_finance_or_health_data_in_its_context_may_not_use_the_network_at_all"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_research.py::test_public_research_is_off_by_default_even_with_a_gateway_configured"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_research.py::test_a_public_query_returns_untrusted_data_with_provenance_and_does_not_change_the_answer"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_research.py::test_a_query_that_repeats_the_tasks_private_context_is_refused_before_anything_is_sent"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_research.py::test_a_task_with_finance_or_health_in_scope_may_not_use_the_network_at_all"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_isolated.py::test_the_worker_has_no_flag_that_skips_its_confinement"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_architecture.py::test_a_model_is_reachable_only_through_the_gate_and_a_context_is_built_only_there"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_architecture.py::test_only_the_mlx_adapter_names_the_inference_library_and_no_model_module_can_reach_the_network_or_unpickle"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_intelligence.py::test_the_gate_remains_the_only_door_and_the_identity_survives_it"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_intelligence.py::test_every_answer_logs_one_content_free_routing_event_with_a_closed_reason"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_consent_api.py::test_only_an_owner_client_selects_the_model_mode_it_starts_as_default_and_the_gateway_follows_it"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_intelligence.py::test_gateway_never_opens_a_network_connection"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_intelligence.py::test_memory_pressure_follows_the_recorded_order_and_stops_as_soon_as_the_model_fits"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_intelligence.py::test_a_model_is_never_unloaded_while_another_request_is_using_it"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_models.py::test_a_changed_file_after_import_is_refused_even_if_the_size_matches"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_models.py::test_a_symlinked_parent_directory_cannot_redirect_a_manifest_path_out_of_the_model_folder"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_models.py::test_the_runtime_is_given_a_folder_with_only_the_manifest_files"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_isolated.py::test_inside_the_worker_no_network_socket_can_be_opened_but_unix_sockets_and_pipes_work"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_isolated.py::test_a_worker_that_cannot_confine_itself_is_never_used"
     }
    ]
@@ -1389,27 +1389,27 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_evals.py::test_retrieval_and_answer_quality_are_reported_separately_per_language_and_script"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_evals.py::test_the_report_states_what_it_does_not_measure"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_search_index.py::test_document_search_equals_ranking_every_passage"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_search_index.py::test_mail_search_equals_ranking_every_passage"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_reliability.py::test_the_evaluation_and_ingestion_tools_print_only_their_labelled_report"
     }
    ]
@@ -1446,27 +1446,27 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_a_question_is_answered_with_progress_citations_model_identity_and_coverage"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_cancel_stops_a_queued_task_with_plain_words"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_the_cited_passage_can_be_opened_exactly_and_stops_opening_when_the_source_changes_or_is_revoked"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_client.py::test_dutch_and_hindi_questions_round_trip_through_the_whole_path"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_enrolment.py::test_a_fresh_install_enrols_its_owner_client_unsigned_once_and_can_then_act_as_owner"
     }
    ],
@@ -1508,29 +1508,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_stage3_acceptance.py::test_every_criterion_is_present_with_evidence_status_and_limitation",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_stage3_acceptance.py::test_every_test_named_in_the_stage_3_documents_exists",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -1547,12 +1547,12 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_stage3_acceptance.py::test_every_criterion_is_present_with_evidence_status_and_limitation"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_stage3_acceptance.py::test_every_test_named_in_the_stage_3_documents_exists"
     }
    ]
@@ -1583,29 +1583,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_tasks.py::test_no_source_file_names_an_existing_database_or_writes_outside_its_own_store",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_tasks.py::test_the_task_store_is_a_new_encrypted_file_with_its_own_key_and_nothing_else_is_touched",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -1622,12 +1622,12 @@
    "listed_tests": [
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_tasks.py::test_no_source_file_names_an_existing_database_or_writes_outside_its_own_store"
     },
     {
      "kind": "test",
-     "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+     "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
      "ref": "core/tests/test_tasks.py::test_the_task_store_is_a_new_encrypted_file_with_its_own_key_and_nothing_else_is_touched"
     }
    ]
@@ -1658,29 +1658,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_review_fixes.py::test_an_answer_and_its_stream_are_withheld_once_a_source_it_cites_is_revoked",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_review_fixes.py::test_a_grant_revoked_while_another_stays_fails_closed_on_resume",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -1955,47 +1955,47 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_backup_verifies_holds_only_what_cannot_be_rebuilt_and_leaks_no_plaintext",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_corrupted_truncated_missing_or_tampered_backup_is_refused_with_a_code",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_the_restore_drill_a_replacement_mac_gets_its_tasks_back_but_no_grant_and_the_index_is_rebuilt",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_restore_goes_only_into_an_empty_place_and_a_failure_leaves_nothing_behind",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_damaged_backup_is_never_restored_even_partly",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2033,23 +2033,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_the_keys_come_back_only_with_the_recovery_passphrase",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2087,23 +2087,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_restore_drill_proves_a_backup_and_only_then_may_the_restricted_domains_be_designated",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -2145,41 +2145,41 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_storage.py::test_usage_is_reported_by_category_and_originals_are_not_counted",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_storage.py::test_pressure_levels_follow_the_stricter_of_the_fraction_and_the_floor",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_storage.py::test_pressure_can_pause_derived_work_and_warn_but_never_delete_anything",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_storage.py::test_a_nearly_full_disk_stops_every_index_from_growing_and_says_so_and_recovery_resumes_it",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2217,29 +2217,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launchagent.py::test_the_agent_runs_only_in_the_owners_login_session_and_restarts_only_after_a_crash",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launcher.py::test_a_locked_keychain_makes_the_core_exit_with_its_own_code_and_the_launcher_says_the_mac_needs_sign_in",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2277,41 +2277,41 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_restricted_domain_answers_under_its_own_grant_with_an_exact_citation",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_no_domain_answers_for_another_domains_grant_and_nothing_crosses_over",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_domain_is_offered_for_designation_only_when_its_adapter_is_configured",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_contacts_and_calendar_are_labelled_by_the_policy_and_carry_their_fields_exactly",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2349,47 +2349,47 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_finance_calc.py::test_sums_are_exact_where_floats_are_not",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_code_computed_total_is_served_with_the_inputs_it_names_and_verifies",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_finance_calc.py::test_month_over_month_is_exact_and_the_percentage_is_labelled_rounded_and_absent_without_a_base",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_finance_calc.py::test_a_summary_names_its_inputs_is_a_finance_record_and_can_be_recomputed",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_finance_calc.py::test_a_tampered_or_stale_summary_is_refused",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2427,29 +2427,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_health.py::test_a_permission_reset_withdraws_every_grant_and_purges_what_was_derived",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -2491,23 +2491,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_task_with_a_restricted_domain_in_scope_has_no_network_even_when_live",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2545,47 +2545,47 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_migration.py::test_the_import_reconciles_row_for_row_and_the_original_is_byte_for_byte_unchanged",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_migrated_legacy_finance_database_answers_through_the_core_under_the_finance_grant",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_migration.py::test_a_row_that_cannot_be_carried_over_exactly_stops_the_import_before_anything_is_written",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_migration.py::test_reconciliation_catches_a_changed_a_missing_and_an_extra_record",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_migration.py::test_a_migrated_finance_database_is_durable_and_listed_newest_first",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2623,35 +2623,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_recordstore.py::test_undo_restores_exactly_and_only_the_latest_change",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_recordstore.py::test_deleting_is_soft_and_undoable_and_the_history_keeps_everything",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -2693,29 +2693,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_the_action_matrix_only_the_four_categories_ever_need_approval",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -2757,29 +2757,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_an_approval_expires_and_cannot_be_granted_after_use",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -2821,29 +2821,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_instructions_in_content_can_neither_propose_nor_approve",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_browser_watchers.py::test_page_text_is_untrusted_data_and_whatever_it_asks_for_is_refused",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -2885,41 +2885,41 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_irreversible_removal_needs_approval_and_a_retry_does_not_run_twice",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_a_stale_edit_is_a_conflict_not_an_overwrite_and_a_failing_handler_is_a_code",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_a_workflow_takes_back_what_it_did_when_a_step_fails_or_it_is_cancelled",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_a_workflow_stops_at_a_step_that_needs_approval_and_reports_a_step_that_cannot_be_taken_back",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -2957,29 +2957,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_connectors.py::test_only_a_positively_authenticated_check_lets_a_connector_act_and_any_later_failure_takes_that_authority_away",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_a_revoked_connector_refuses_every_one_of_its_actions",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -3017,35 +3017,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_the_audit_is_chained_content_free_and_tampering_is_detected",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_actions.py::test_the_audit_is_written_to_disk_before_the_outcome_continues_after_a_restart_and_a_damaged_file_stops_the_actions",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_operations_api.py::test_a_damaged_audit_file_means_the_core_serves_no_actions_at_all",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -3087,89 +3087,89 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_the_registry_is_sealed_and_an_agent_cannot_change_its_own_authority",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_a_plan_that_does_not_fit_the_registry_is_refused_before_anything_runs",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_dependent_tasks_wait_and_receive_only_their_declared_inputs_while_independent_ones_run_together",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_a_transient_failure_is_retried_a_bounded_number_of_times_and_a_final_failure_is_not",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_an_incomplete_workflow_is_never_reported_as_complete",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_a_high_impact_task_is_complete_only_when_independently_verified",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_cancellation_and_the_deadline_stop_the_work_and_say_so",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_restricted_domain_work_stays_inside_the_agent_registered_for_it",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_the_direct_path_comes_first_when_the_plan_is_not_trusted",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_many_tasks_run_in_bounded_time_with_bounded_workers",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_a_blocked_executor_cannot_hold_the_run_past_its_deadline_or_the_owners_cancel",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_orchestrator.py::test_an_executor_that_returns_after_its_deadline_is_expired_and_its_result_is_not_used",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -3212,23 +3212,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_browser_watchers.py::test_only_allowed_public_https_hosts_are_opened_and_a_redirect_off_the_list_ends_the_workflow",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -3266,35 +3266,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_browser_watchers.py::test_a_notification_carries_no_content_and_a_watcher_has_no_way_to_act",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_browser_watchers.py::test_quiet_hours_hold_normal_notifications_release_them_once_and_never_repeat_an_event",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_browser_watchers.py::test_calendar_conflicts_are_overlaps_not_touching_ends",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -3363,83 +3363,83 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_a_signed_update_installs_atomically_and_keeps_the_previous_version",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_an_unsigned_wrongly_signed_or_altered_release_is_refused_before_anything_is_unpacked",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_a_malformed_manifest_is_a_code",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_never_backwards_by_accident_and_a_version_is_never_overwritten",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_an_unhealthy_new_version_rolls_back_by_itself_and_the_data_folder_is_untouched",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_a_crash_while_unpacking_leaves_the_old_version_current_and_no_half_version",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_an_artefact_that_writes_outside_its_own_folder_is_refused",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_a_symbolic_link_inside_an_artefact_is_refused",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_an_explicit_rollback_returns_to_the_previous_version_and_can_itself_be_undone",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_a_failed_or_raising_health_check_never_leaves_an_unhealthy_version_current",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_updater.py::test_a_signed_zip_bomb_or_deceptive_size_metadata_is_refused_and_the_old_version_is_untouched",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -3482,35 +3482,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_health.py::test_health_names_each_check_and_reports_codes_not_content",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_health.py::test_diagnostics_hold_no_question_passage_file_name_key_or_home_path",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_health.py::test_redaction_is_a_second_line_of_defence_for_anything_that_slipped_in",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -3552,23 +3552,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_health.py::test_a_permission_reset_withdraws_every_grant_and_purges_what_was_derived",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -3641,41 +3641,41 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launchagent.py::test_the_agent_runs_only_in_the_owners_login_session_and_restarts_only_after_a_crash",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launchagent.py::test_nothing_secret_or_remote_is_in_the_file",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launchagent.py::test_the_agent_lives_in_the_users_launch_agents_folder_never_in_a_system_daemons_folder",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launchagent.py::test_a_relative_or_missing_program_is_refused",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -3778,65 +3778,65 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_only_an_owner_client_can_open_a_pairing_offer_and_a_paired_device_is_never_an_owner",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_a_code_works_once_expires_after_five_minutes_and_is_closed_by_guessing",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_the_device_can_pin_the_core_and_rejects_an_impostor",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_revocation_is_immediate_durable_and_survives_a_restart",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_a_member_cannot_revoke_anything_and_the_last_owner_cannot_be_revoked",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_no_module_of_the_core_binds_an_internet_address_or_opens_a_public_port",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_a_signed_request_used_before_a_restart_cannot_be_replayed_after_it",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_a_failed_durable_write_never_reports_a_revocation_or_pairing_as_done",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -3879,29 +3879,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_devices.py::test_no_module_of_the_core_binds_an_internet_address_or_opens_a_public_port",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_relay.py::test_the_relay_will_only_listen_on_a_private_or_vpn_address",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -3943,65 +3943,65 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_an_offline_queue_is_applied_in_order_and_reported_per_operation",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_replaying_the_queue_changes_nothing_even_after_a_restart_of_the_core",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_an_edit_made_against_an_old_version_is_a_conflict_that_never_overwrites",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_a_revoked_or_unknown_device_has_its_whole_queue_rejected",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_a_device_cannot_queue_what_needs_approval_or_touch_a_restricted_domain",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_an_oversized_queue_is_refused_whole",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_a_device_cache_holds_only_own_record_domains_and_expires",
       "proves": "checkpoint"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_sync.py::test_an_operation_id_is_one_operation_even_across_a_restart",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -4044,23 +4044,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_browser_watchers.py::test_a_push_payload_is_a_kind_and_an_id_and_nothing_a_push_service_or_a_lock_screen_could_read",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -8202,11 +8202,11 @@
    },
    "review": {
     "verdict": "fail",
-    "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
-    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098305702",
+    "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232",
     "reviewer": "architect",
-    "review_id": "6098305702",
-    "note": "local record undo passes; reversible connector compensation and the receipt update are separate steps: recover an interrupted compensation or refuse retry when its outcome cannot be confirmed"
+    "review_id": "6098896232",
+    "note": "retry design accepted; the owner message says the undo was sent although an interruption before dispatch gives the same state: neutral wording and a test"
    },
    "recorded_status": "PARTIAL",
    "open_gap": "App now preserves failed undo state and displays a message (ATLAS-APP-053; helper test and exact-head CI pending); action receipts are not durable across restart; exact-head CI pending for connector fix."
@@ -8361,47 +8361,47 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_designation.py::test_the_platform_taking_a_granted_permission_back_revokes_the_grant_and_purges",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_a_grant_withdrawn_at_the_last_read_before_delivery_still_removes_the_result",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_a_citation_text_is_not_delivered_when_the_grant_is_withdrawn_while_it_is_being_read",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_summary_is_withheld_when_its_domain_is_withdrawn_while_the_records_are_being_read",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -8505,12 +8505,12 @@
     "evidence": []
    },
    "review": {
-    "verdict": "pending",
-    "revision": "b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1",
-    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203",
+    "verdict": "fail",
+    "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232",
     "reviewer": "architect",
-    "review_id": "6097009203",
-    "note": "upgrade evidence met; full credit needs an agreed software-only pass condition naming the multilingual pipeline evidence"
+    "review_id": "6098896232",
+    "note": "against the amended software condition: year-like text is removed before tokenization, so a decimal amount whose integer part looks like a year can escape the check"
    },
    "recorded_status": "PARTIAL",
    "open_gap": "Japanese/unspaced-script retrieval is documented as a gap; target-model multilingual quality unmeasured."
@@ -8868,49 +8868,49 @@
     "evidence": [
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job: ruff, mypy, tests",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job: ruff, mypy, tests",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted kit job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915759",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118637",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted macos job: swift build and tests",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915774",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118656",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted app job: build and launch",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915773",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118796",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted ios job: simulator build",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915850",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118741",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -8988,10 +8988,10 @@
    },
    "review": {
     "verdict": "fail",
-    "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
-    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098305702",
+    "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232",
     "reviewer": "architect",
-    "review_id": "6098305702",
+    "review_id": "6098896232",
     "note": "the required mac-ui job failed"
    }
   },
@@ -9019,39 +9019,59 @@
    "required_evidence": "Hosted runs of a failing-test case and a rejected-artifact case",
    "checkpoint": "The workflow records the test status, scans before upload and fails the job afterwards, and its pass path runs in hosted Core CI",
    "implementation": {
-    "state": "checkpoint",
+    "state": "full",
     "evidence": [
      {
       "kind": "commit",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
-      "ref": ".github/workflows/ci.yml core job: record status, scan, gated upload, final fail step",
-      "proves": "checkpoint"
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+      "ref": ".github/actions/core-tests/action.yml: the one definition of the core job's test, scan, gated publication and final-failure steps",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+      "ref": "core/tests/test_artefact_scan.py::test_the_ci_failure_paths_job_runs_the_core_jobs_own_steps_and_asserts_both_gates",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+      "ref": "core/tests/test_artefact_scan.py::test_the_ci_core_job_saves_its_artefacts_scans_them_and_uploads_them",
+      "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+      "ref": "hosted core-failure-paths job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118859",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      }
     ]
    },
    "review": {
-    "verdict": "pending",
-    "revision": "b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1",
-    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203",
+    "verdict": "pass",
+    "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232",
     "reviewer": "architect",
-    "review_id": "6097009203",
-    "note": "checkpoint retained; the fixture must share the production steps and prove the same publication and final-failure gates"
+    "review_id": "6098896232",
+    "note": "the shared-action design meets option (i): the core matrix and both fixtures call the same composite action"
    }
   },
   {
@@ -9083,11 +9103,11 @@
    },
    "review": {
     "verdict": "fail",
-    "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
-    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098305702",
+    "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232",
     "reviewer": "architect",
-    "review_id": "6098305702",
-    "note": "exact-head mac-ui still fails"
+    "review_id": "6098896232",
+    "note": "exact-head mac-ui still fails in both appearances"
    }
   },
   {
@@ -9149,29 +9169,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "app/Tests/AtlasKitTests/PhoneTests.swift::testAPhonePairsReadsOfflineSyncsHandlesAConflictAndIsWipedWhenRevoked",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_operations_api.py::test_a_device_pairs_over_the_socket_checks_the_core_syncs_and_is_revoked_for_good",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted macos job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915774",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118656",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9213,29 +9233,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_a_grant_withdrawn_at_the_last_read_before_delivery_still_removes_the_result",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_library_applies_the_same_device_source_ceiling_as_a_question_and_the_owner_is_unaffected",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9277,23 +9297,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_a_citation_text_is_not_delivered_when_the_grant_is_withdrawn_while_it_is_being_read",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9335,47 +9355,47 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_transport.py::test_an_idle_signed_stream_of_a_paired_device_closes_when_the_device_is_revoked",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_transport.py::test_an_idle_signed_stream_closes_when_the_device_source_ceiling_no_longer_covers_the_task",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_transport.py::test_no_final_payload_reaches_a_device_revoked_while_the_final_event_is_being_prepared",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_transport.py::test_a_still_entitled_device_keeps_receiving_its_stream_to_the_final_answer",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_transport.py::test_an_already_open_signed_stream_closes_when_the_core_begins_to_shut_down",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9417,35 +9437,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_a_queued_1_1_final_event_does_not_deliver_counts_of_a_source_withdrawn_after_the_batch_was_read",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_suppressed_coverage_never_reports_indexing_done_after_the_question_as_searched",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_api.py::test_coverage_counts_of_a_withdrawn_source_that_cited_nothing_are_not_delivered_in_a_1_1_answer_or_stream",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9487,29 +9507,29 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_summary_is_withheld_when_its_domain_is_withdrawn_while_the_records_are_being_read",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_domains.py::test_a_summary_is_withheld_when_its_domain_is_withdrawn_during_the_calculation",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9551,35 +9571,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launcher.py::test_concurrent_starts_across_a_keychain_refusal_never_have_two_contenders_in_the_factory",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launcher.py::test_an_unexpected_factory_failure_releases_the_folder_lock",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launcher.py::test_a_start_that_cannot_own_the_data_folder_provisions_no_keys_and_opens_no_store",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9621,47 +9641,47 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_failed_restore_never_unlinks_the_folder_lock_it_holds",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_no_core_can_start_on_a_partly_restored_folder",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_started_core_between_its_key_read_and_its_first_store_keeps_its_keys_from_any_restore",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_backup.py::test_a_commit_point_whose_write_succeeded_but_could_not_be_confirmed_keeps_the_restored_files",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_macos.py::test_first_provisioning_never_overwrites_a_key_a_competing_start_added_in_between",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9703,41 +9723,41 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launcher.py::test_a_stop_with_a_request_still_running_exits_with_status_7_and_the_next_start_succeeds",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_launcher.py::test_a_data_folder_lock_dies_with_its_holder_so_a_crash_never_blocks_the_next_start",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_app.py::test_close_keeps_the_stores_and_the_lock_while_a_request_could_still_be_using_them",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_app.py::test_work_admitted_but_not_yet_running_is_counted_by_the_drain",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9779,23 +9799,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_app.py::test_the_first_documents_and_mail_workflow_works_end_to_end_with_exact_evidence",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9868,12 +9888,12 @@
     "evidence": []
    },
    "review": {
-    "verdict": "pending",
-    "revision": "b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1",
-    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203",
+    "verdict": "fail",
+    "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+    "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232",
     "reviewer": "architect",
-    "review_id": "6097009203",
-    "note": "hosted AppModel tests for truthful incomplete coverage and clearing shown results, including stale continuations"
+    "review_id": "6098896232",
+    "note": "a suspended citation fetch can write evidence after withdrawal; the answer path checks the current scope, not its captured generation: generation checks on every completion path and an AppModel test"
    }
   },
   {
@@ -9904,35 +9924,35 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_client.py::test_a_question_is_answered_with_progress_citations_model_identity_and_coverage",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_client.py::test_the_cited_passage_can_be_opened_exactly_and_stops_opening_when_the_source_changes_or_is_revoked",
       "proves": "full"
      },
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_client.py::test_every_value_of_every_closed_vocabulary_has_a_message",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "full"
      }
@@ -9972,9 +9992,9 @@
     "evidence": [
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted app job: build Atlas.app with its private Python, launch, start and stop the Core",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915773",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118796",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -10010,23 +10030,23 @@
     "evidence": [
      {
       "kind": "test",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "core/tests/test_macos.py::test_not_one_attachment_byte_is_read_even_when_it_lies_within_the_same_4k_window_as_the_text",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.11 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915682",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118694",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      },
      {
       "kind": "ci",
-      "revision": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+      "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
       "ref": "hosted core-3.13 job",
-      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203/job/140984915780",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000/job/141021118719",
       "environment": "GitHub-hosted runner",
       "proves": "checkpoint"
      }
@@ -10729,6 +10749,75 @@
     "not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuse",
     "public enum QuestionRunner {",
     "public final class StopSignal {"
+   ]
+  },
+  {
+   "from": "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55",
+   "revision": "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15",
+   "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232",
+   "files": [
+    ".github/actions/core-tests/action.yml",
+    ".github/workflows/ci.yml",
+    "app/Sources/AtlasApp/AtlasApp.swift",
+    "app/Sources/AtlasApp/Screens.swift",
+    "app/Sources/AtlasKit/AnswerView.swift",
+    "app/Sources/AtlasKit/SubmissionGate.swift",
+    "app/Sources/AtlasKit/Withdrawal.swift",
+    "app/Tests/AtlasKitTests/SubmissionGateTests.swift",
+    "app/Tests/AtlasKitTests/WithdrawalTests.swift",
+    "core/docs/PROGRESS_TRACKER.md",
+    "core/docs/acceptance_register.json",
+    "core/evals/harness.py",
+    "core/evals/set_v3.json",
+    "core/src/atlas_core/actions.py",
+    "core/src/atlas_core/connectors.py",
+    "core/src/atlas_core/recordstore.py",
+    "core/tests/test_actions.py",
+    "core/tests/test_artefact_scan.py",
+    "core/tests/test_evals.py",
+    "kit/src/kit/audit.py",
+    "kit/tests/test_kit.py",
+    "scripts/build_acceptance_register.py"
+   ],
+   "changed_lines": 2451,
+   "function_contexts": [
+    "First Mac milestone view (criteria tagged first-mac): implementation 13.5/19 (71",
+    "JOBS = {",
+    "OUT_V04 = ROOT / \"core\" / \"docs\" / \"acceptance_register_v04_proposed.json\"",
+    "SCHEMA_VERSION = 1",
+    "V11_REVIEW = (\"910df6ae917929537c1511bf77c1bb36123480d2\", \"https://github.com/Pr",
+    "_MINUS = \"-−\"  # hyphen-minus and the Unicode minus sign",
+    "_TOOL_NUM = re.compile(rf\"(?<![\\w.])(?P<open>\\()?(?P<sign>[{_MINUS}])?(?P<num>\\d",
+    "class ActionGateway:",
+    "class ConnectorHub:",
+    "class ReceiptBook(Protocol):",
+    "class RecordStore:",
+    "class _Done:",
+    "def _check(case: dict[str, Any], envelope: dict[str, Any], model: ScriptedModel,",
+    "def _numbers(text: str) -> list[Decimal]:",
+    "def _signed(sign: str | None, num: str) -> Decimal | None:",
+    "def apply_verdicts_910df6a(criteria: list[dict]) -> list[dict]:",
+    "def main() -> int:",
+    "def run(path: Path = SET_FILE) -> dict[str, Any]:",
+    "def test_a_figure_is_proven_only_by_the_same_signed_value_exactly():",
+    "def test_a_known_sentinel_in_a_log_is_caught(tmp_path):",
+    "def test_an_external_action_proven_not_performed_clears_its_intent_so_the_key_ma",
+    "def test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_",
+    "def test_the_ci_core_job_saves_its_artefacts_scans_them_and_uploads_them():",
+    "def test_the_set_is_locked_so_a_change_must_be_a_new_version():",
+    "def unproven_figures(reply: str, tool_outputs: list[str]) -> list[float]:",
+    "file-level review and is not counted as line or function coverage.",
+    "final class AppModel: ObservableObject {",
+    "final class SubmissionCancellationTests: XCTestCase {",
+    "from atlas_core.values import LanguageIn  # noqa: E402",
+    "from typing import Any, Protocol",
+    "import harness  # noqa: E402",
+    "import re",
+    "jobs:",
+    "not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuse",
+    "public enum UndoConfirmation {",
+    "public struct AnswerView {",
+    "struct RecordsView: View {"
    ]
   }
  ]

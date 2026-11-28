@@ -21,24 +21,24 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 19.5%** (42.5/218) · **Review completion 14.7%** (32/218) · register v0.3 (the file as committed) scoring software revision `c116bd5` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); the v0.4 proposal was withdrawn by the owner (28 Nov) and this is the only measure)
+**Implementation readiness 19.7%** (43/218) · **Review completion 16.1%** (35/218) · register v0.3 (the file as committed) scoring software revision `3717bed` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); the v0.4 proposal was withdrawn by the owner (28 Nov) and this is the only measure)
 
-Mandatory criteria not yet passing: **190** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
+Mandatory criteria not yet passing: **189** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
 
-Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (32).
+Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (35).
 
 | Part of the register | Criteria | Implementation | Review |
 |---|---:|---:|---:|
-| first-mac | 16 | 11.5 (72%) | 13 (81%) |
+| first-mac | 16 | 12 (75%) | 15 (94%) |
 | prd | 61 | 0 (0%) | 0 (0%) |
 | roadmap | 3 | 2.5 (83%) | 1 (33%) |
 | stage3 | 20 | 8.5 (42%) | 5 (25%) |
 | stages4to8 | 34 | 19 (56%) | 10 (29%) |
-| use-case | 84 | 1 (1%) | 3 (4%) |
+| use-case | 84 | 1 (1%) | 4 (5%) |
 
-First Mac milestone view (criteria tagged first-mac): implementation 13.5/19 (71.1%), review 15/19 (78.9%).
+First Mac milestone view (criteria tagged first-mac): implementation 14/19 (73.7%), review 17/19 (89.5%).
 
-Supporting inventory (git-tracked): 288 source files, 48,221 lines, 3065 functions; 212 test files, 1986 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 16 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 288 source files, 48,242 lines, 3066 functions; 212 test files, 1986 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 17 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->
@@ -120,3 +120,4 @@ file-level review and is not counted as line or function coverage.
 | 10 | `b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1` | 19.3% (42/218) | 14.7% (32/218) | Verdicts: S3-C08 fail with its Core checkpoint met; UC-L14 and UC-L26 fail; MAC-08 and MAC-06 fail; UC-009, UC-L22, MAC-07, UC-049 and MAC-20 pending. The architect confirmed 41.5/218 at 6c35e62 (its 41 was 0.5 short). Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203) |
 | 11 | `910df6ae917929537c1511bf77c1bb36123480d2` | 19.5% (42.5/218) | 14.7% (32/218) | Verdicts: S3-C08 pass (full); UC-L26 fail (one final authorization boundary across sources); MAC-08 and MAC-06 fail. ATLAS-ACT-019: torn tail closed, strict replay open. v0.4 aligned with failed and pending verdicts. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097249161) |
 | 12 | `c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55` | 19.5% (42.5/218) | 14.7% (32/218) | Verdicts: UC-L26 fail (final permission checks sequential); UC-L14 fail for the full criterion, local record undo passes (connector compensation and receipt separate); UC-049 and UC-009 pending; MAC-08 and MAC-06 fail. ATLAS-ACT-019: approval replay closed; intent-journal torn tail and bounded audit-anchor recovery open. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098305702) |
+| 13 | `3717bedd3e41d87c2e9bfdadc72ea6ce56084e15` | 19.7% (43/218) | 16.1% (35/218) | Verdicts: MAC-07 pass (full; shared-action design meets option (i)); MAC-20 fail (generation checks on every AppModel completion path); UC-L22 fail (year-like integer part escapes the figure check); UC-L14 fail (retry design accepted; neutral unknown-outcome wording); MAC-08 and MAC-06 fail. Arithmetic reproduced: +0.5 implementation, +3 verdicts. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232) |

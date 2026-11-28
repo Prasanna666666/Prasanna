@@ -24,11 +24,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
 OUT_V04 = ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json"
-CI_REVISION = "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203"
+CI_REVISION = "3717bedd3e41d87c2e9bfdadc72ea6ce56084e15"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46158758000"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140984915682", "core-3.13": f"{CI_RUN}/job/140984915780", "kit": f"{CI_RUN}/job/140984915759",
-    "macos": f"{CI_RUN}/job/140984915774", "app": f"{CI_RUN}/job/140984915773", "ios": f"{CI_RUN}/job/140984915850",
+    "core-3.11": f"{CI_RUN}/job/141021118694", "core-3.13": f"{CI_RUN}/job/141021118719", "kit": f"{CI_RUN}/job/141021118637",
+    "macos": f"{CI_RUN}/job/141021118656", "app": f"{CI_RUN}/job/141021118796", "ios": f"{CI_RUN}/job/141021118741",
+    "core-failure-paths": f"{CI_RUN}/job/141021118859",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
@@ -43,6 +44,7 @@ V09_REVIEW = ("6c35e620517abfed7d45e42b2fd3b6c52afa50a3", "https://github.com/Pr
 V10_REVIEW = ("b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203", "6097009203")
 V11_REVIEW = ("910df6ae917929537c1511bf77c1bb36123480d2", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097249161", "6097249161")
 V12_REVIEW = ("c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098305702", "6098305702")
+V13_REVIEW = ("3717bedd3e41d87c2e9bfdadc72ea6ce56084e15", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098896232", "6098896232")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -496,6 +498,25 @@ def apply_verdicts_c116bd5(criteria: list[dict]) -> list[dict]:
     by["UC-009"]["review"] = _verdict(V12_REVIEW, "pending", note="synchronise the pass condition with the two-sided Stop behaviour and add hosted evidence that the production AppModel shows the same outcome with no misleading error")
     by["MAC-08"]["review"] = _verdict(V12_REVIEW, "fail", note="exact-head mac-ui still fails")
     by["MAC-06"]["review"] = _verdict(V12_REVIEW, "fail", note="the required mac-ui job failed")
+    return apply_verdicts_3717bed(criteria)
+
+
+def apply_verdicts_3717bed(criteria: list[dict]) -> list[dict]:
+    """The architect's review of 3717bed (review 6098896232)."""
+    by = {c["id"]: c for c in criteria}
+    mac07 = by["MAC-07"]
+    refs = [
+        {"kind": "commit", "revision": CI_REVISION, "ref": ".github/actions/core-tests/action.yml: the one definition of the core job's test, scan, gated publication and final-failure steps"},
+        test("core/tests/test_artefact_scan.py", "test_the_ci_failure_paths_job_runs_the_core_jobs_own_steps_and_asserts_both_gates"),
+        test("core/tests/test_artefact_scan.py", "test_the_ci_core_job_saves_its_artefacts_scans_them_and_uploads_them"),
+    ]
+    mac07["implementation"] = {"state": "full", "evidence": [{**e, "proves": "full"} for e in refs] + [{**ci(j), "proves": "full"} for j in ("core-failure-paths", "core-3.11", "core-3.13")]}
+    mac07["review"] = _verdict(V13_REVIEW, "pass", note="the shared-action design meets option (i): the core matrix and both fixtures call the same composite action")
+    by["MAC-20"]["review"] = _verdict(V13_REVIEW, "fail", note="a suspended citation fetch can write evidence after withdrawal; the answer path checks the current scope, not its captured generation: generation checks on every completion path and an AppModel test")
+    by["UC-L22"]["review"] = _verdict(V13_REVIEW, "fail", note="against the amended software condition: year-like text is removed before tokenization, so a decimal amount whose integer part looks like a year can escape the check")
+    by["UC-L14"]["review"] = _verdict(V13_REVIEW, "fail", note="retry design accepted; the owner message says the undo was sent although an interruption before dispatch gives the same state: neutral wording and a test")
+    by["MAC-08"]["review"] = _verdict(V13_REVIEW, "fail", note="exact-head mac-ui still fails in both appearances")
+    by["MAC-06"]["review"] = _verdict(V13_REVIEW, "fail", note="the required mac-ui job failed")
     return criteria
 
 
