@@ -139,7 +139,8 @@ def build_config(data_dir: Path, socket_path: Path, bootstrap_code: str | None, 
         raise HostUnavailable("the real platform providers exist only for macOS")
     items = KeychainItems(env.account, env.runner)
     try:
-        keyrestore.recover(items, data_dir)  # an interrupted restore is finished or undone before any key is read
+        keyrestore.recover(items)  # an interrupted restore is finished or undone, account-wide, before any key is read
+        keyrestore.claim(items, data_dir)  # add-only: this folder owns the live keys unless another installation already does
         keys = {name: items.secret(name) for name in KEY_NAMES}
         record_key = bytes.fromhex(items.secret("model-record"))
     except (KeychainError, keyrestore.KeyRestoreError):

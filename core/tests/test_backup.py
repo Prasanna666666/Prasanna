@@ -428,41 +428,80 @@ def test_a_restore_leaves_no_active_device_the_owner_cannot_see_or_revoke(world,
 
 def test_a_restore_whose_key_staging_fails_leaves_no_files_and_the_working_keys_in_place(world, tmp_path):
     """MAC-17 end to end: the Keychain step fails before its commit point; the restored files are removed and the working keys untouched."""
-    from test_maintenance import _Items
+    from test_maintenance import GONE, _Items
 
     from atlas_core.maintenance import provision_staged
 
     a_core_with_a_finished_task(world)
     folder = make_backup(world, tmp_path)
-    before = {"atlas-task-store": "the-working-task-key", "atlas-designation-store": "the-working-designation-key"}
-    items = _Items(before, fail_write_at=2)
+    before = {"atlas-task-store": "the-working-task-key", "atlas-designation-store": "the-working-designation-key", "atlas-installation": GONE}
+    items = _Items(before, fail_write_at=3)
     target = tmp_path / "restored"
     with pytest.raises(OSError):
         restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
-    assert {k: v for k, v in items.store.items() if not k.startswith("atlas-staged-")} == before and not target.exists()
+    assert items.live() == before and not target.exists()
+
+
+def _reopen(folder: Path, key: str, task_id: str) -> str:
+    from atlas_core.tasks import TaskStore
+
+    store = TaskStore(folder / "tasks.db", key)
+    try:
+        return store.record(task_id)["state"]
+    finally:
+        store.close()
+
+
+def test_a_restore_into_a_second_folder_never_orphans_the_working_installation(world, tmp_path):
+    """MAC-17, two data folders. The keys are account-wide (one owner, one installation), so while the working folder still holds its
+    files a restore into another folder is refused before any key is written: its copied files are removed and the working installation
+    reopens under its own keys. Once that folder is retired, a restore into the second folder interrupted after its commit point is
+    completed by the next start of either folder (the journal is account-wide), and the restored installation reopens under its keys."""
+    from test_maintenance import _Items
+
+    from atlas_core import keyrestore
+    from atlas_core.maintenance import provision_staged
+
+    task_id, _answer = a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    working, target = world.tmp / "core", tmp_path / "restored"
+    world.close()
+    items = _Items({"atlas-task-store": DB_KEYS["tasks.db"], "atlas-designation-store": DB_KEYS["designation.db"]})
+    keyrestore.claim(items, working)  # the working installation's start records that it owns the live keys
+
+    with pytest.raises(keyrestore.KeyRestoreError, match="another_installation"):
+        restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
+    assert not target.exists() and not any(k.startswith("atlas-staged-") for k in items.store)
+    assert keyrestore.recover(items) == "none" and _reopen(working, items.store["atlas-task-store"], task_id) == "completed"
+
+    retired = working.with_name("core-retired")
+    working.rename(retired)  # the owner retires the old folder (it no longer holds files at the owned path)
+    items.fail_write_at = items.writes + 6  # 1 journal, 2-4 staged, 5 commit point: the 6th write is the first promotion
+    with pytest.raises(keyrestore.KeyCommitIncomplete):
+        restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
+    assert (target / "tasks.db").exists()  # past the commit point the restored files are kept
+    items.fail_write_at = None
+    assert keyrestore.recover(items) == "completed"  # a start of any folder finishes it
+    assert items.live()["atlas-installation"] == str(target.resolve()) and "atlas-restore-journal" not in items.store
+    assert _reopen(target, items.store["atlas-task-store"], task_id) == "completed"
 
 
 def test_a_restore_interrupted_after_its_commit_point_is_completed_and_the_installation_reopens(world, tmp_path):
     """MAC-17 end to end: a Keychain write fails after the commit point. The restored files stay; the next start's recovery completes the
     keys; and the restored task store opens with the key now in the Keychain, with the finished task in it."""
-    from test_maintenance import _Items
+    from test_maintenance import GONE, _Items
 
     from atlas_core import keyrestore
     from atlas_core.maintenance import provision_staged
-    from atlas_core.tasks import TaskStore
 
     task_id, _answer = a_core_with_a_finished_task(world)
     folder = make_backup(world, tmp_path)
-    items = _Items({"atlas-task-store": "the-old-task-key"}, fail_write_at=4)  # writes 1-3 stage the three keys; write 4 is the first commit write
+    items = _Items({"atlas-task-store": "the-old-task-key", "atlas-installation": GONE}, fail_write_at=6)  # 1 journal, 2-4 staged, 5 commit point
     target = tmp_path / "restored"
-    with pytest.raises(OSError):
+    with pytest.raises(keyrestore.KeyCommitIncomplete):
         restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
     assert (target / "tasks.db").exists()  # past the commit point the restored files are kept
     items.fail_write_at = None
-    assert keyrestore.recover(items, target) == "completed"
+    assert keyrestore.recover(items) == "completed"
     assert items.store["atlas-task-store"] == DB_KEYS["tasks.db"] and items.store["atlas-designation-store"] == DB_KEYS["designation.db"]
-    store = TaskStore(target / "tasks.db", items.store["atlas-task-store"])
-    try:
-        assert store.record(task_id)["state"] == "completed"
-    finally:
-        store.close()
+    assert _reopen(target, items.store["atlas-task-store"], task_id) == "completed"

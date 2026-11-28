@@ -85,8 +85,9 @@ def _import_finance(paths: list[Path], legacy_key: str, open_sink: SinkOpener) -
 
 
 def provision_staged(items: KeyItems, bundle: Mapping[str, str], data_dir: Path) -> None:
-    """Put recovered keys into the Keychain recoverably (see keyrestore): staged into inactive items first, then committed past a durable
-    journal in `data_dir`, so no failure, failing clean-up or interrupted process leaves the working installation with some keys replaced."""
+    """Put recovered keys into the Keychain for the installation in `data_dir`, recoverably (see keyrestore): one serialized, account-wide
+    transaction, staged into inactive items first and committed past a durable Keychain journal, refused while another data folder owns the
+    live keys, so no failure, failing clean-up, interrupted process or second installation is left with some keys replaced."""
     names = {**{f"db:{db}": item for db, item in KEY_ITEMS.items()}, **BUNDLE_ITEMS}
     keyrestore.provision(items, {f"atlas-{item}": bundle[key] for key, item in names.items() if key in bundle}, data_dir)
 
@@ -120,7 +121,7 @@ def main() -> int:  # pragma: no cover  (the platform wiring: the real Keychain,
     items = KeychainItems()
 
     def write_keys(bundle: Mapping[str, str]) -> None:
-        provision_staged(items, bundle, Path(sys.argv[3]))  # `restore <backup> <target>`: the journal lives in the restored data folder
+        provision_staged(items, bundle, Path(sys.argv[3]))  # `restore <backup> <target>`: the installation the keys will belong to
 
     def open_sink(data_dir: Path) -> tuple[Sink, Callable[[], None]]:
         from .finance_calc import MONEY_DOMAIN

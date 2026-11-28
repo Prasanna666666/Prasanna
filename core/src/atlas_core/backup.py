@@ -39,6 +39,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from kit.db import EncryptionError, connect
 
+from .keyrestore import KeyCommitIncomplete
+
 FORMAT = 1
 MIN_PASSPHRASE = 12
 SCRYPT_N, SCRYPT_R, SCRYPT_P = 2**15, 8, 1
@@ -429,19 +431,11 @@ def restore_backup(
         _check_copies(target, manifest, bundle, report)
         provision_keys(bundle)
         return report
+    except KeyCommitIncomplete:
+        raise  # past the key commit point: the restored files match the new keys, which the next start's recovery finishes installing
     except BaseException:
-        if not _key_commit_started(target):
-            _remove_made(made, target, created_target)
-        # else: the new keys passed their commit point, so the restored files stay and the next start completes the keys (keyrestore)
+        _remove_made(made, target, created_target)
         raise
-
-
-def _key_commit_started(target: Path) -> bool:
-    journal = target / "restore-keys.journal"  # keyrestore.JOURNAL
-    try:
-        return bool(json.loads(journal.read_text(encoding="utf-8")).get("state") == "committing")
-    except (OSError, ValueError):
-        return False
 
 
 DRILL_FILE = "restore-drill.json"

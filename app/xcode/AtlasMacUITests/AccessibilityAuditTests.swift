@@ -38,6 +38,43 @@ final class AccessibilityAuditTests: XCTestCase {
 
     func testTheFirstScreenAPersonSeesPassesTheAccessibilityAudit() throws { try audit(appearance: "Light") }
 
+    /// MAC-08 diagnosis (architect review 6094872675, option iii): the same paragraph alone in a minimal window, in the same hosted job,
+    /// with the window, element and app state recorded. It records the audit's findings without gating on them; the gate stays above.
+    func testDiagnosticTheFlaggedParagraphInAMinimalWindow() throws {
+        for appearance in ["Light", "Dark"] {
+            let app = XCUIApplication()
+            app.launchEnvironment["ATLAS_UI_TEST_PROBE"] = "1"
+            app.launchEnvironment["ATLAS_UI_TEST_APPEARANCE"] = appearance
+            let stateFile = NSTemporaryDirectory() + "atlas-probe-state-\(appearance).txt"
+            try? FileManager.default.removeItem(atPath: stateFile)
+            app.launchEnvironment["ATLAS_UI_TEST_STATE_FILE"] = stateFile
+            app.launch()
+            app.activate()
+            let paragraph = app.staticTexts["Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer."]
+            XCTAssertTrue(paragraph.waitForExistence(timeout: 30), "the probe window shows the paragraph")
+            states(app, paragraph, "PROBE [\(appearance)]", stateFile)
+            var flagged: [String] = []
+            try app.performAccessibilityAudit { issue in
+                let line = "PROBE AUDIT ISSUE [\(appearance)]: \(issue.auditType) | \(issue.compactDescription) | \(issue.element?.debugDescription ?? "no element")"
+                print(line)
+                flagged.append(line)
+                if issue.auditType == .contrast, let e = issue.element { print("PROBE CONTRAST PIXELS [\(appearance)]: \(Self.measuredContrast(e.screenshot().image))") }
+                return true  // diagnostic: recorded, never gating
+            }
+            print("PROBE RESULT [\(appearance)]: \(flagged.isEmpty ? "no findings" : "\(flagged.count) finding(s)")")
+            states(app, paragraph, "PROBE AFTER AUDIT [\(appearance)]", stateFile)
+            app.terminate()
+        }
+    }
+
+    /// What XCUITest and the app itself report about activation and enablement, for the window, the root group and one element.
+    private func states(_ app: XCUIApplication, _ element: XCUIElement, _ tag: String, _ stateFile: String) {
+        let window = app.windows.firstMatch
+        let root = window.groups.firstMatch
+        print("\(tag) XCUI: appState=\(app.state.rawValue) window.enabled=\(window.isEnabled) window.hittable=\(window.isHittable) root.enabled=\(root.exists ? "\(root.isEnabled)" : "none") element.enabled=\(element.exists ? "\(element.isEnabled)" : "none") element.hittable=\(element.exists ? "\(element.isHittable)" : "none")")
+        print("\(tag) APP: \((try? String(contentsOfFile: stateFile, encoding: .utf8)) ?? "no state recorded")")
+    }
+
     /// The same audit in Dark appearance, so a contrast finding can be attributed to one appearance or both (architect review: check both).
     func testTheFirstScreenPassesTheAccessibilityAuditInDarkAppearance() throws { try audit(appearance: "Dark") }
 
@@ -45,6 +82,9 @@ final class AccessibilityAuditTests: XCTestCase {
         let app = XCUIApplication()
         if let python = ProcessInfo.processInfo.environment["ATLAS_CI_PYTHON"] { app.launchEnvironment["ATLAS_CI_PYTHON"] = python }
         app.launchEnvironment["ATLAS_UI_TEST_APPEARANCE"] = appearance  // a test-scoped seam: the app sets NSApp.appearance from it (the launch argument was ignored)
+        let stateFile = NSTemporaryDirectory() + "atlas-audit-state-\(appearance).txt"
+        try? FileManager.default.removeItem(atPath: stateFile)
+        app.launchEnvironment["ATLAS_UI_TEST_STATE_FILE"] = stateFile
         print("AUDIT APPEARANCE requested: \(appearance)")
         app.launch()
         app.activate()  // audited as the active, key window, so an inactive-window rendering is not what is measured
@@ -65,6 +105,8 @@ final class AccessibilityAuditTests: XCTestCase {
         add(XCTAttachment(string: "Screen texts: \(labels)"))
         print("TREE: \(app.debugDescription)")  // the accessibility tree in the CI log, to name any element a finding is about
         keep(app, "first-screen-\(appearance)")
+        let paragraph = app.staticTexts["Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer."]
+        states(app, paragraph, "AUDIT STATE [\(appearance)]", stateFile)
         try app.performAccessibilityAudit { issue in
             let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' \($0.identifier)" } ?? "no element"
             let line = "AUDIT ISSUE [\(appearance)]: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element) | \(issue.element?.debugDescription ?? "")"

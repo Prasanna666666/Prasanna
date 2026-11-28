@@ -22,15 +22,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
-CI_REVISION = "6574c2cb8dd23c9d1a3a7084c6aa1e207756900c"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46078831844"
+CI_REVISION = "e23b04bff48c2c3d79976b50921f86d91a3c46ce"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46086267907"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140772796489", "core-3.13": f"{CI_RUN}/job/140772796709", "kit": f"{CI_RUN}/job/140772796465",
-    "macos": f"{CI_RUN}/job/140772796484", "app": f"{CI_RUN}/job/140772796461", "ios": f"{CI_RUN}/job/140772796435",
+    "core-3.11": f"{CI_RUN}/job/140796440933", "core-3.13": f"{CI_RUN}/job/140796440843", "kit": f"{CI_RUN}/job/140796440963",
+    "macos": f"{CI_RUN}/job/140796440925", "app": f"{CI_RUN}/job/140796440786", "ios": f"{CI_RUN}/job/140796440625",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
 V04_REVIEW = ("6574c2cb8dd23c9d1a3a7084c6aa1e207756900c", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094252873", "6094252873")
+V05_REVIEW = ("e23b04bff48c2c3d79976b50921f86d91a3c46ce", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094872675", "6094872675")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -269,6 +270,7 @@ V03_CHANGES = [
     "All evidence cited the scored revision 8b23cc6 and its CI run 46061223577; MAC-13 and MAC-14 were reopened because that batch changed the delivery code their evidence covered. Verdicts at 8b23cc6 mirrored: MAC-06 fail, MAC-08 fail, S3-C06 pending.",
     "v0.3 agreed as the reporting baseline (review 6093596586, comment 7228002976). Scored revision moved to 2815257 and its PR CI run 46068853988. Verdicts at 2815257 mirrored: MAC-14 pass, MAC-18 pass, MAC-13 pending (checkpoint verified), MAC-15 fail, MAC-06 fail, MAC-08 fail.",
     "Scored revision moved to 6574c2c and its PR CI run 46078831844. Verdicts at 6574c2c (review 6094252873) mirrored: MAC-13 pass, MAC-15 pass, MAC-19 pass, MAC-17 fail (add-only checkpoint kept), MAC-06 fail, MAC-08 fail.",
+    "Scored revision moved to e23b04b and its PR CI run 46086267907. Verdicts at e23b04b (review 6094872675) mirrored: MAC-17 fail (ownership across data folders; add-only checkpoint kept), MAC-08 fail (investigate the Disabled window state first), MAC-06 fail.",
 ]
 
 
@@ -357,6 +359,15 @@ def apply_verdicts_6574c2c(criteria: list[dict]) -> list[dict]:
     by["MAC-17"]["review"] = _verdict(V04_REVIEW, "fail", note="a failing rollback or a killed process can leave keys half-replaced; needs inactive staged keys and a durable commit/recovery boundary")
     by["MAC-06"]["review"] = _verdict(V04_REVIEW, "fail", note="one required hosted job (mac-ui) failed")
     by["MAC-08"]["review"] = _verdict(V04_REVIEW, "fail", note="onboarding paragraph contrast still flagged; assert effective Light/Dark, then a layout change; no exemption")
+    return apply_verdicts_e23b04b(criteria)
+
+
+def apply_verdicts_e23b04b(criteria: list[dict]) -> list[dict]:
+    """The architect's review of e23b04b (review 6094872675): its explicit criterion verdicts."""
+    by = {c["id"]: c for c in criteria}
+    by["MAC-17"]["review"] = _verdict(V05_REVIEW, "fail", note="live and staged keys are shared across data folders while the journal lives in one target; needs per-installation namespacing or an account-wide ownership protocol and a two-folder regression")
+    by["MAC-08"]["review"] = _verdict(V05_REVIEW, "fail", note="effective appearances verified, paragraph still flagged; investigate the Disabled window state first; no exemption")
+    by["MAC-06"]["review"] = _verdict(V05_REVIEW, "fail", note="the required Mac UI check failed")
     return criteria
 
 

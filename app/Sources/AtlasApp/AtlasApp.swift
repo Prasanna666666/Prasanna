@@ -10,10 +10,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Test-scoped appearance: only the UI tests set ATLAS_UI_TEST_APPEARANCE, so the accessibility audit can run in a known, verified
     /// Light or Dark appearance. Without it the app follows the system, as always.
     func applicationWillFinishLaunching(_ notification: Notification) {
+        #if DEBUG  // the UI tests run a Debug build; a release build carries no test seam at all
         switch ProcessInfo.processInfo.environment["ATLAS_UI_TEST_APPEARANCE"] {
         case "Dark": NSApp.appearance = NSAppearance(named: .darkAqua)
         case "Light": NSApp.appearance = NSAppearance(named: .aqua)
         default: break
+        }
+        guard let path = ProcessInfo.processInfo.environment["ATLAS_UI_TEST_STATE_FILE"] else { return }
+        // UI-test diagnostics only (architect review 6094872675, MAC-08 option iii): the app's own record of whether it is active and which
+        // window is key, written to the file the test names, so an accessibility tree that reports the window as Disabled can be explained.
+        let names: [Notification.Name] = [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification, NSWindow.didBecomeKeyNotification, NSWindow.didResignKeyNotification, NSWindow.didBecomeMainNotification]
+        for name in names {
+            stateObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { Self.recordState(name.rawValue, to: path) } })
+        }
+        #endif
+    }
+
+    private var stateObservers: [NSObjectProtocol] = []
+
+    @MainActor static func recordState(_ event: String, to path: String) {
+        let windows = NSApp.windows.map { w in "'\(w.title)' key=\(w.isKeyWindow) main=\(w.isMainWindow) visible=\(w.isVisible) visibleOcclusion=\(w.occlusionState.contains(.visible)) sheet=\(w.attachedSheet != nil)" }
+        let line = "\(event): active=\(NSApp.isActive) hidden=\(NSApp.isHidden) modal=\(NSApp.modalWindow != nil) policy=\(NSApp.activationPolicy().rawValue) windows=\(windows)\n"
+        if let handle = FileHandle(forWritingAtPath: path) {
+            handle.seekToEndOfFile()
+            handle.write(Data(line.utf8))
+            try? handle.close()
+        } else {
+            try? line.write(toFile: path, atomically: true, encoding: .utf8)
         }
     }
 
@@ -27,7 +50,15 @@ struct AtlasApp: App {
     @StateObject private var model = AppModel()
     var body: some Scene {
         WindowGroup("Atlas") {
+            #if DEBUG
+            if ProcessInfo.processInfo.environment["ATLAS_UI_TEST_PROBE"] == "1" {
+                UITestProbeView().frame(minWidth: 520, minHeight: 420)  // UI-test diagnostics only: the flagged paragraph alone in a plain window
+            } else {
+                RootView(model: model).frame(minWidth: 520, minHeight: 420)
+            }
+            #else
             RootView(model: model).frame(minWidth: 520, minHeight: 420)
+            #endif
         }
         .commands {
             CommandMenu("Go") {
@@ -722,3 +753,17 @@ final class AppModel: ObservableObject {
         do { _ = try await Task.detached { try client.withdraw(grantID: grantID) }.value; await refreshConsent(); await loadSettings() } catch { failure = (error as? AtlasError)?.message }
     }
 }
+
+#if DEBUG
+/// UI-test diagnostics only (ATLAS_UI_TEST_PROBE): the onboarding paragraph the audit flags, alone in a plain window with the system's own
+/// background and text colour, so the audit result can be compared with the real first-run screen in the same hosted job.
+struct UITestProbeView: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer.")
+        }
+        .padding(40)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+#endif
