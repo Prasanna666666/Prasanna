@@ -225,3 +225,35 @@ def test_newest_indexed_compares_times_as_numbers_and_never_reports_a_source_wit
     assert both["newest_indexed"] == iso_utc(later) and both["indexed"] == 2
     raced = ConsentService(None, _Access(withdraw_after_read={"documents"}), {"documents": _Index(later), "mail": _Index(whole)}).index_status()
     assert raced["newest_indexed"] == iso_utc(whole) and raced["indexed"] == 1 and raced["total"] == 1
+
+
+def test_a_source_withdrawn_while_a_later_source_is_read_is_left_out_of_the_signed_index_status(tmp_path):
+    """UC-L26 (review 6097249161): over the signed API, Documents is admitted and read first; while Mail's coverage is being read the owner
+    withdraws Documents. The response is built at one final authorization boundary, so it carries Mail's counts, failures and timestamp only."""
+    w = World(tmp_path, mail=True)
+    w.owner_key = Ed25519PrivateKey.generate()
+    w.clients.register(OWNER, w.owner_key.public_key(), owner=True)
+    try:
+        core = w.build()
+        core.start()
+        w.os.set("documents", "granted")
+        w.os.set("mail", "granted")
+        owner(w).enable(["documents", "mail"])
+        w.wait_indexed(core, "documents")
+        w.wait_indexed(core, "mail")
+        alone = core.indexes["mail"].coverage()
+        mail_cov, real = core.indexes["mail"], core.indexes["mail"].coverage
+
+        def mail_coverage_while_documents_is_withdrawn():
+            core.designation.withdraw("documents", "withdraw-during-read")
+            return real()
+
+        mail_cov.coverage = mail_coverage_while_documents_is_withdrawn
+        status = owner(w).index_status()
+        contracts.validate("IndexStatus", status, "1.1")
+        from atlas_core.documents import iso_utc
+
+        assert (status["indexed"], status["total"]) == (alone["searched"], alone["total"])
+        assert status["newest_indexed"] == iso_utc(alone["newest_ts"]) and status["failed"] == []
+    finally:
+        w.close()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -354,11 +355,45 @@ def test_a_torn_approval_record_never_absorbs_the_next_state_and_corruption_else
     path = tmp_path / "approvals.jsonl"
     book = ApprovalFile(path)
     expires = datetime(2026, 11, 28, 10, 0, tzinfo=UTC)
-    book.append(Approval("a1", "b" * 64, 1, expires, granted=True))
+    book.append(Approval("a1a1a1a1a1a1a1a1", "b" * 64, 1, expires, granted=True))
     with open(path, "ab") as handle:
-        handle.write(b'{"id": "a1", "binding": "')  # the write that was interrupted: no newline
-    book.append(Approval("a1", "b" * 64, 1, expires, granted=True, used=True))
-    assert book.load()["a1"].used is True  # the acknowledged state survives; nothing was absorbed into the torn tail
+        handle.write(b'{"id": "a1a1a1a1a1a1a1a1", "binding": "')  # the write that was interrupted: no newline
+    book.append(Approval("a1a1a1a1a1a1a1a1", "b" * 64, 1, expires, granted=True, used=True))
+    assert book.load()["a1a1a1a1a1a1a1a1"].used is True  # the acknowledged state survives; nothing was absorbed into the torn tail
     path.write_text(path.read_text() + "not a record\n" + path.read_text().splitlines()[0] + "\n")
     with pytest.raises(ValueError, match="approval_state_corrupt"):
         ApprovalFile(path).load()
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"granted": "true"},  # a string is not a boolean
+        {"category": True},  # a boolean is not a category
+        {"category": 9},  # not one of the four
+        {"expires_at": "2026-11-28T10:00:00"},  # no timezone
+        {"id": "short"},
+        {"extra": 1},
+    ],
+)
+def test_approval_replay_takes_no_record_that_is_not_exactly_of_its_form(tmp_path, bad):
+    """ATLAS-ACT-019 (review 6097249161): replay coerces nothing. A record with a wrong type, an unknown category, a time without a timezone,
+    a malformed id or an extra field makes the state untrusted."""
+    from atlas_core.actions import ApprovalFile
+
+    row = {"id": "a1a1a1a1a1a1a1a1", "binding": "b" * 64, "category": 1, "expires_at": "2026-11-28T10:00:00+00:00", "granted": True, "used": False}
+    (tmp_path / "approvals.jsonl").write_text(json.dumps({**row, **bad}) + "\n")
+    with pytest.raises(ValueError, match="approval_state_corrupt"):
+        ApprovalFile(tmp_path / "approvals.jsonl").load()
+
+
+@pytest.mark.parametrize("change", [{"used": False}, {"granted": False, "used": False}, {"binding": "c" * 64}, {"category": 2}])
+def test_approval_replay_refuses_a_record_that_moves_an_approval_backwards_or_changes_what_it_binds(tmp_path, change):
+    """A used approval cannot become unused again, a granted one cannot be un-granted, and no later record may change the binding, category or
+    expiry: any of these makes the state untrusted (the Core then serves no actions)."""
+    from atlas_core.actions import ApprovalFile
+
+    row = {"id": "a1a1a1a1a1a1a1a1", "binding": "b" * 64, "category": 1, "expires_at": "2026-11-28T10:00:00+00:00", "granted": True, "used": True}
+    (tmp_path / "approvals.jsonl").write_text(json.dumps(row) + "\n" + json.dumps({**row, **change}) + "\n")
+    with pytest.raises(ValueError, match="approval_state_corrupt"):
+        ApprovalFile(tmp_path / "approvals.jsonl").load()

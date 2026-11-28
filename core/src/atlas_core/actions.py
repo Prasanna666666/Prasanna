@@ -20,6 +20,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import secrets
 import threading
 from collections.abc import Callable
@@ -222,13 +223,38 @@ class ApprovalFile:
         complete = data if data.endswith(b"\n") else data[: data.rfind(b"\n") + 1]
         for line in complete.decode("utf-8").splitlines():
             try:
-                row = json.loads(line)
-                found[row["id"]] = Approval(
-                    row["id"], row["binding"], int(row["category"]), datetime.fromisoformat(row["expires_at"]), bool(row["granted"]), bool(row["used"])
-                )
+                approval = _strict_approval(json.loads(line))
             except (ValueError, KeyError, TypeError):
                 raise ValueError("approval_state_corrupt") from None
+            before = found.get(approval.approval_id)
+            if before is not None and not _allowed_transition(before, approval):
+                raise ValueError("approval_state_corrupt")  # a record that changes what was approved, or un-grants or un-uses it
+            found[approval.approval_id] = approval
         return found
+
+
+_HEX16, _HEX64 = re.compile(r"[0-9a-f]{16}"), re.compile(r"[0-9a-f]{64}")
+
+
+def _strict_approval(row: Any) -> Approval:
+    """One journal record, taken only if every field has exactly its own type and form: nothing is coerced (a string "false" is not False)."""
+    if not isinstance(row, dict) or set(row) != {"id", "binding", "category", "expires_at", "granted", "used"}:
+        raise ValueError("fields")
+    approval_id, binding, category, expires, granted, used = (row[k] for k in ("id", "binding", "category", "expires_at", "granted", "used"))
+    if not (isinstance(approval_id, str) and _HEX16.fullmatch(approval_id) and isinstance(binding, str) and _HEX64.fullmatch(binding)):
+        raise ValueError("identity")
+    if type(category) is not int or category not in CATEGORY.values() or type(granted) is not bool or type(used) is not bool:
+        raise ValueError("types")
+    at = datetime.fromisoformat(expires) if isinstance(expires, str) else None
+    if at is None or at.utcoffset() is None or (used and not granted):
+        raise ValueError("expiry_or_state")
+    return Approval(approval_id, binding, category, at, granted, used)
+
+
+def _allowed_transition(before: Approval, after: Approval) -> bool:
+    """A later record for the same approval may only move it forward (pending, granted, used) and never change what it binds."""
+    same = (before.binding, before.category, before.expires_at) == (after.binding, after.category, after.expires_at)
+    return same and (after.granted or not before.granted) and (after.used or not before.used)
 
 
 class ReceiptBook(Protocol):

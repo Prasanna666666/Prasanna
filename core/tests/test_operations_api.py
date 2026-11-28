@@ -319,12 +319,32 @@ def test_the_review_reports_overlapping_calendar_events_from_the_owners_own_cale
     assert e.value.code == "forbidden"
 
 
-def test_approval_state_that_does_not_replay_cleanly_means_the_core_serves_no_actions(tmp_path):
+def _row(granted: str, used: str) -> str:
+    return (
+        '{"binding": "'
+        + "b" * 64
+        + '", "category": 1, "expires_at": "2026-11-28T10:00:00+00:00", "granted": '
+        + granted
+        + ', "id": "a1a1a1a1a1a1a1a1", "used": '
+        + used
+        + "}"
+    )
+
+
+@pytest.mark.parametrize(
+    "journal",
+    [
+        "not a record\n{}\n",
+        _row('"true"', "false") + "\n",  # a coerced type
+        _row("true", "true") + "\n" + _row("true", "false") + "\n",  # a used approval made unused again
+    ],
+)
+def test_approval_state_that_does_not_replay_cleanly_means_the_core_serves_no_actions(tmp_path, journal):
     """ATLAS-ACT-019: a corrupt line in the approval journal (not a torn tail) makes the approval state untrusted, so the Core serves no actions at
     all rather than guess which approvals were used."""
     world = OpsWorld(tmp_path)
     (tmp_path / "core").mkdir(parents=True, exist_ok=True)
-    (tmp_path / "core" / "actions-approvals.jsonl").write_text("not a record\n{}\n")
+    (tmp_path / "core" / "actions-approvals.jsonl").write_text(journal)
     core = world.build()
     core.start()
     try:

@@ -24,11 +24,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
 OUT_V04 = ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json"
-CI_REVISION = "b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46127625211"
+CI_REVISION = "910df6ae917929537c1511bf77c1bb36123480d2"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46132313240"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140925633071", "core-3.13": f"{CI_RUN}/job/140925632895", "kit": f"{CI_RUN}/job/140925632877",
-    "macos": f"{CI_RUN}/job/140925632932", "app": f"{CI_RUN}/job/140925632992", "ios": f"{CI_RUN}/job/140925632729",
+    "core-3.11": f"{CI_RUN}/job/140939960141", "core-3.13": f"{CI_RUN}/job/140939960161", "kit": f"{CI_RUN}/job/140939960147",
+    "macos": f"{CI_RUN}/job/140939960037", "app": f"{CI_RUN}/job/140939960089", "ios": f"{CI_RUN}/job/140939960079",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
@@ -41,6 +41,7 @@ AUDIT1 = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasan
 AUDIT2 = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7235938220", "7235938220")
 V09_REVIEW = ("6c35e620517abfed7d45e42b2fd3b6c52afa50a3", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096694534", "6096694534")
 V10_REVIEW = ("b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203", "6097009203")
+V11_REVIEW = ("910df6ae917929537c1511bf77c1bb36123480d2", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097249161", "6097249161")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -469,6 +470,19 @@ def apply_verdicts_b2ca5b3(criteria: list[dict]) -> list[dict]:
     s308 = by["S3-C08"]
     s308["implementation"] = {"state": "checkpoint", "evidence": [{**e, "proves": "checkpoint"} for e in s308.get("listed_tests", [])] + [{**test("core/tests/test_app.py", "test_a_construction_that_fails_partway_closes_every_store_it_had_opened_and_releases_the_folder"), "proves": "checkpoint"}, {**ci("core-3.11"), "proves": "checkpoint"}, {**ci("core-3.13"), "proves": "checkpoint"}]}
     s308["review"] = v("fail", "index constructors acquire their connections before schema checks and rebuild and do not close them on failure")
+    return apply_verdicts_910df6a(criteria)
+
+
+def apply_verdicts_910df6a(criteria: list[dict]) -> list[dict]:
+    """The architect's review of 910df6a (review 6097249161)."""
+    by = {c["id"]: c for c in criteria}
+    s308 = by["S3-C08"]
+    refs = [e for e in s308["implementation"]["evidence"] if e["kind"] == "test"] + [test("core/tests/test_app.py", "test_an_index_whose_constructor_fails_after_opening_its_database_closes_it_and_the_core_restarts")]
+    s308["implementation"] = {"state": "full", "evidence": [{**e, "proves": "full"} for e in refs] + [{**ci(j), "proves": "full"} for j in ("core-3.11", "core-3.13")]}
+    s308["review"] = _verdict(V11_REVIEW, "pass", note="agreed software criterion; device-only power-loss and FileVault drills are outside this verdict")
+    by["UC-L26"]["review"] = _verdict(V11_REVIEW, "fail", note="a source admitted early and withdrawn while a later source is read still contributes; build the response at one final authorization boundary")
+    by["MAC-08"]["review"] = _verdict(V11_REVIEW, "fail", note="exact-head mac-ui still fails")
+    by["MAC-06"]["review"] = _verdict(V11_REVIEW, "fail", note="the required mac-ui job failed")
     return criteria
 
 
@@ -610,6 +624,9 @@ def _landed(cid: str) -> bool:
 
 
 def _full(c: dict, refs: list[tuple[str, str]], note: str) -> None:
+    if c["review"].get("verdict") in ("fail", "pending"):  # review 6097249161: the proposal never runs ahead of a failed or pending verdict
+        c["v04_awaiting"] = f"held at its current state while the architect's verdict is {c['review']['verdict']}: {note}"
+        return
     if not _landed(c["id"]):
         c["v04_awaiting"] = f"credited once the scored revision contains {V04_LANDS_IN[c['id']]}: {note}"
         return

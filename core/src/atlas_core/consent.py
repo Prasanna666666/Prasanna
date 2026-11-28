@@ -55,17 +55,16 @@ class ConsentService:
         return self.state()
 
     def index_status(self) -> dict[str, Any]:
-        """Counts only, summed over the indexes that are currently permitted (a source without a current grant contributes nothing and is not described)."""
+        """Counts only, summed over the indexes that are currently permitted (a source without a current grant contributes nothing and is not
+        described). Every source's coverage is read first and kept apart; only then, at one final authorization boundary, is each source checked
+        again and the response built from the ones still permitted, so a source withdrawn while any later source was read is left out entirely."""
+        reports = [(source_type, index.coverage()) for source_type, index in self._indexes.items() if self._access.permitted(source_type)]
+        kept = [report for source_type, report in reports if self._access.permitted(source_type)]  # the final boundary, after every read
         indexed = total = pending = 0
         failed: dict[str, int] = {}
-        unknown = building = False
+        building = False
         newest: float | None = None
-        for source_type, index in self._indexes.items():
-            if not self._access.permitted(source_type):
-                continue
-            report = index.coverage()
-            if not self._access.permitted(source_type):
-                continue  # withdrawn while its coverage was read: nothing of it, counts or timestamp, is delivered
+        for report in kept:
             indexed += report["searched"]
             total += report["total"]
             pending += report["pending"]
@@ -79,7 +78,7 @@ class ConsentService:
         return {
             "state": state,
             "indexed": indexed,
-            "total": None if unknown else total,
+            "total": total,
             "newest_indexed": iso_utc(newest),  # the newest permitted item's own timestamp; null when nothing permitted is indexed (never guessed)
             "failed": [{"reason_code": k, "count": v} for k, v in sorted(failed.items())],
         }
