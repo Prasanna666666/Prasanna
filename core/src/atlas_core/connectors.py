@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from importlib import resources
 from typing import Any, Protocol
 
-from .actions import ActionGateway, ActionSpec
+from .actions import ActionGateway, ActionNotPerformed, ActionSpec
 from .connector_transport import request as urllib_transport
 from .errors import CoreError
 
@@ -277,8 +277,9 @@ class ConnectorHub:
             credentials = self._credentials(entry.id)
             previous = result.get("previous")
             if credentials is None or not isinstance(previous, dict):
-                # A reversible action must never report a successful compensation it did not perform.
-                raise OSError("undo_unavailable")
+                # A reversible action must never report a successful compensation it did not perform. Nothing was sent, so this is
+                # provably not performed and the owner can retry once reconnected.
+                raise ActionNotPerformed("undo_unavailable")
             restored = self._adapters[entry.id].act(write["name"], previous, credentials)
             if restored.get("done") is not True:
                 raise OSError("undo_not_confirmed")

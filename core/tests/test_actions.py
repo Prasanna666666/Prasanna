@@ -546,3 +546,132 @@ def test_an_external_action_proven_not_performed_clears_its_intent_so_the_key_ma
     pending = g2.propose("shop.check", {"q": 1}, origin="owner_request", idempotency_key="k")
     g2.grant(pending.approval_id, by_owner=True)
     assert g2.propose("shop.check", {"q": 1}, origin="owner_request", idempotency_key="k", approval_id=pending.approval_id).status == "done"
+
+
+class Provider:
+    """A synthetic remote service behind a reversible connector action: its state and how many compensations it applied live in a file, as a
+    remote service's state would outlive Atlas's process."""
+
+    def __init__(self, path):
+        self.path = path
+        if not path.exists():
+            path.write_text(json.dumps({"light": "off", "compensations": 0}))
+
+    def state(self) -> dict:
+        return json.loads(self.path.read_text())
+
+    def set(self, payload: dict) -> dict:
+        state = self.state()
+        previous = {"light": state["light"]}
+        state["light"] = payload["light"]
+        self.path.write_text(json.dumps(state))
+        return {"done": True, "previous": previous}
+
+    def compensate(self, previous: dict) -> None:
+        state = self.state()
+        state["light"], state["compensations"] = previous["light"], state["compensations"] + 1
+        self.path.write_text(json.dumps(state))
+
+
+def remote_spec(provider: Provider, undo=None) -> ActionSpec:
+    return ActionSpec(
+        "home.control_device", frozenset({"local_reversible"}), provider.set, undo or (lambda _p, r: provider.compensate(r["previous"])), connector="home"
+    )
+
+
+_KILLED_COMPENSATION = """
+import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[4])
+from conftest import KEY
+from test_actions import Provider, remote_spec
+from atlas_core.actions import ActionGateway
+from atlas_core.recordstore import RecordStore
+store = RecordStore(Path(sys.argv[1]), KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+provider = Provider(Path(sys.argv[2]))
+gateway = ActionGateway(receipts=store)
+gateway.register(remote_spec(provider, lambda _p, r: (provider.compensate(r["previous"]), os._exit(9))))  # killed after the remote effect
+gateway.undo(sys.argv[3])
+"""
+
+
+def test_a_connector_undo_killed_after_its_remote_compensation_is_never_sent_again_after_restart(tmp_path):
+    """UC-L14 (review 6098305702): a reversible connector's undo is a remote compensation, which cannot share a transaction with the receipt.
+    Its intent is recorded before it is sent; the process is killed (os._exit) after the provider applied it and before the receipt was marked.
+    After the restart the outcome cannot be confirmed, so the undo is refused as `undo_outcome_unknown` and the provider has compensated once,
+    never twice (before this fix the receipt stayed eligible and a retry compensated again)."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    store_path, provider = tmp_path / "edits.db", Provider(tmp_path / "provider.json")
+    store = RecordStore(store_path, KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+    gateway = ActionGateway(receipts=store)
+    gateway.register(remote_spec(provider))
+    done = gateway.propose("home.control_device", {"light": "on"}, origin="owner_request", idempotency_key="h1")
+    store.close()
+    assert done.status == "done" and provider.state()["light"] == "on"
+    killed = subprocess.run(
+        [sys.executable, "-c", _KILLED_COMPENSATION, str(store_path), str(provider.path), done.action_id, str(Path(__file__).parent)],
+        check=False,
+        capture_output=True,
+    )
+    assert killed.returncode == 9, killed.stderr
+    assert provider.state() == {"light": "off", "compensations": 1}  # the remote effect happened
+    store = RecordStore(store_path, KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+    try:
+        restarted = ActionGateway(receipts=store)
+        restarted.register(remote_spec(provider))
+        first = restarted.undo(done.action_id)
+        assert provider.state()["compensations"] == 1, "the compensation was sent a second time"
+        assert first.code == "undo_outcome_unknown" and restarted.undo(done.action_id).code == "undo_outcome_unknown"
+        assert store.undo_pending(done.action_id) and store.receipt(done.action_id)[3] is False
+    finally:
+        store.close()
+
+
+def test_a_connector_undo_whose_response_is_lost_is_refused_on_retry_before_and_after_a_restart(tmp_path):
+    """The same boundary without a kill: the provider applies the compensation and the reply is lost (any failure other than a proven
+    `ActionNotPerformed`). The owner sees `undo_outcome_unknown`, and neither a retry in this run nor one after a restart sends it again."""
+    provider = Provider(tmp_path / "provider.json")
+    store = RecordStore(tmp_path / "edits.db", KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+
+    def lost(_p, r):
+        provider.compensate(r["previous"])
+        raise TimeoutError("reply lost")
+
+    try:
+        gateway = ActionGateway(receipts=store)
+        gateway.register(remote_spec(provider, lost))
+        done = gateway.propose("home.control_device", {"light": "on"}, origin="owner_request", idempotency_key="h1")
+        failed = gateway.undo(done.action_id)
+        assert (failed.status, failed.code) == ("failed", "undo_outcome_unknown") and gateway.undo(done.action_id).code == "undo_outcome_unknown"
+        restarted = ActionGateway(receipts=store)
+        restarted.register(remote_spec(provider))
+        assert restarted.undo(done.action_id).code == "undo_outcome_unknown" and provider.state()["compensations"] == 1
+    finally:
+        store.close()
+
+
+def test_a_connector_undo_that_provably_sent_nothing_clears_its_intent_and_succeeds_once_on_retry(tmp_path):
+    """A compensation refused before anything was sent (`ActionNotPerformed`, e.g. disconnected) clears the recorded intent: the owner sees
+    `undo_failed`, and a retry after a restart compensates exactly once."""
+    from atlas_core.actions import ActionNotPerformed
+
+    provider = Provider(tmp_path / "provider.json")
+    store = RecordStore(tmp_path / "edits.db", KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+
+    def disconnected(_p, _r):
+        raise ActionNotPerformed("undo_unavailable")
+
+    try:
+        gateway = ActionGateway(receipts=store)
+        gateway.register(remote_spec(provider, disconnected))
+        done = gateway.propose("home.control_device", {"light": "on"}, origin="owner_request", idempotency_key="h1")
+        assert gateway.undo(done.action_id).code == "undo_failed" and not store.undo_pending(done.action_id)
+        restarted = ActionGateway(receipts=store)
+        restarted.register(remote_spec(provider))
+        assert restarted.undo(done.action_id).code == "undone" and restarted.undo(done.action_id).code == "already_undone"
+        assert provider.state() == {"light": "off", "compensations": 1}
+    finally:
+        store.close()

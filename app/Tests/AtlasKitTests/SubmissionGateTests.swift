@@ -57,4 +57,21 @@ final class SubmissionCancellationTests: XCTestCase {
         XCTAssertFalse(UndoConfirmation.isConfirmed(["status": "failed"]))
         XCTAssertFalse(UndoConfirmation.isConfirmed([:]))
     }
+
+    func testAnUndoWhoseRemoteOutcomeIsUnknownIsNotOfferedAgainAndIsNotDescribedAsStillInPlace() {
+        let unknown: [String: Any] = ["status": "failed", "code": "undo_outcome_unknown"]
+        XCTAssertFalse(UndoConfirmation.isRetryable(unknown))
+        XCTAssertFalse(UndoConfirmation.failureMessage(unknown).contains("may still be in place"))
+        XCTAssertTrue(UndoConfirmation.failureMessage(unknown).contains("will not send it again"))
+        XCTAssertFalse(UndoConfirmation.isRetryable(["status": "refused", "code": "undo_outcome_unknown"]))
+    }
+
+    func testAnUndoThatProvablyChangedNothingOrGotNoAnswerKeepsItsHandle() {
+        let failed: [String: Any] = ["status": "failed", "code": "undo_failed"]
+        XCTAssertTrue(UndoConfirmation.isRetryable(failed))
+        XCTAssertTrue(UndoConfirmation.isRetryable(nil))
+        XCTAssertTrue(UndoConfirmation.failureMessage(failed).contains("may still be in place"))
+        XCTAssertTrue(UndoConfirmation.failureMessage(nil).contains("may still be in place"))
+        XCTAssertFalse(UndoConfirmation.isRetryable(["status": "refused", "code": "already_undone"]))
+    }
 }

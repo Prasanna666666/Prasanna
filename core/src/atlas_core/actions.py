@@ -166,6 +166,7 @@ class _Done:
     payload: dict[str, Any]
     result: dict[str, Any]
     undone: bool = False
+    undo_unknown: bool = False  # a remote compensation was attempted and its outcome cannot be confirmed: it is never sent again
 
 
 class IdempotencyFile:
@@ -277,6 +278,9 @@ class ReceiptBook(Protocol):
     def put_receipt(self, action_id: str, name: str, payload: dict[str, Any], result: dict[str, Any]) -> None: ...
     def receipt(self, action_id: str) -> tuple[str, dict[str, Any], dict[str, Any], bool] | None: ...
     def mark_undone(self, action_id: str) -> None: ...
+    def begin_undo(self, action_id: str) -> bool: ...
+    def clear_undo(self, action_id: str) -> None: ...
+    def undo_pending(self, action_id: str) -> bool: ...
 
 
 class ActionGateway:
@@ -434,35 +438,64 @@ class ActionGateway:
         if found is None or found[0] not in self._specs:
             return None
         name, payload, result, undone = found
-        done = _Done(self._specs[name], payload, result, undone)
+        done = _Done(self._specs[name], payload, result, undone, undo_unknown=self._receipts is not None and self._receipts.undo_pending(action_id))
         self._done[action_id] = done
         return done
 
     def undo(self, action_id: str) -> Outcome:
         with self._lock:
             done = self._done.get(action_id) or self._from_receipt(action_id)
-            if done is None:
-                return Outcome("refused", "unknown_action_id")
-            if done.undone:
-                return Outcome("refused", "already_undone")
-            if done.spec.undo is None:
-                return Outcome("refused", "not_reversible")
+            refused = self._undo_refusal(done)
+            if refused is not None:
+                return Outcome("refused", refused)
+            assert done is not None
             digest = hashlib.sha256(_canonical(done.payload)).hexdigest()
             atomic = done.spec.atomic_undo is not None and self._receipts is not None
-            try:
-                if atomic:
-                    assert done.spec.atomic_undo is not None
-                    done.spec.atomic_undo(done.payload, done.result, action_id)  # the effect and the receipt's mark commit together
-                else:
-                    done.spec.undo(done.payload, done.result)
-            except Exception:  # noqa: BLE001
+            remote = done.spec.connector is not None and not atomic  # a compensation outside Atlas's transactional stores
+            if remote and self._receipts is not None and not self._receipts.begin_undo(action_id):
+                return Outcome("refused", "undo_outcome_unknown")  # the durable receipt is no longer eligible
+            failed = self._compensate(done, action_id, atomic=atomic, remote=remote)
+            if failed is not None:
                 self._log(done.spec.name, "failed", "undo_failed", digest, None)
-                return Outcome("failed", "undo_failed")
+                return Outcome("failed", failed)
             done.undone = True
             if self._receipts is not None and not atomic:
                 self._receipts.mark_undone(action_id)
             self._log(done.spec.name, "done", "undone", digest, None)
             return Outcome("done", "undone", action_id=action_id)
+
+    @staticmethod
+    def _undo_refusal(done: _Done | None) -> str | None:
+        if done is None:
+            return "unknown_action_id"
+        if done.undone:
+            return "already_undone"
+        if done.spec.undo is None:
+            return "not_reversible"
+        if done.undo_unknown:
+            return "undo_outcome_unknown"  # sending the compensation again could apply it twice
+        return None
+
+    def _compensate(self, done: _Done, action_id: str, *, atomic: bool, remote: bool) -> str | None:
+        """Run the undo; None when it is done, else the failure code. A remote compensation that fails without proving it did nothing has an
+        unknown outcome: its recorded intent stays, and it is never sent again (UC-L14)."""
+        try:
+            if atomic:
+                assert done.spec.atomic_undo is not None
+                done.spec.atomic_undo(done.payload, done.result, action_id)  # the effect and the receipt's mark commit together
+            else:
+                assert done.spec.undo is not None
+                done.spec.undo(done.payload, done.result)
+        except ActionNotPerformed:
+            if remote and self._receipts is not None:
+                self._receipts.clear_undo(action_id)  # provably nothing was sent: the undo may be retried
+            return "undo_failed"
+        except Exception:  # noqa: BLE001
+            if remote:
+                done.undo_unknown = True  # the provider may have applied it
+                return "undo_outcome_unknown"
+            return "undo_failed"
+        return None
 
 
 @dataclass

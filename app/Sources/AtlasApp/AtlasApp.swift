@@ -202,7 +202,7 @@ final class AppModel: ObservableObject {
     @Published var ownRecords: [OwnDomain: LoadState<[OwnRecord]>] = [:]
     @Published var undoLabel: String?
     @Published var undoFailure: String?
-    private var undoActionID: String?
+    private(set) var undoActionID: String?
     // Library
     @Published var library: LoadState<LibraryPage> = .idle
     @Published var libraryQuery = ""
@@ -546,7 +546,8 @@ final class AppModel: ObservableObject {
         do {
             let outcome = try await Task.detached { try client.undo(actionID: id) }.value
             guard UndoConfirmation.isConfirmed(outcome) else {
-                undoFailure = "Atlas could not confirm the undo. The original change may still be in place."
+                undoFailure = UndoConfirmation.failureMessage(outcome)
+                if !UndoConfirmation.isRetryable(outcome) { undoActionID = nil }  // the Core will refuse it again: no Undo that cannot work
                 return
             }
             undoActionID = nil
@@ -555,7 +556,7 @@ final class AppModel: ObservableObject {
             await loadRecords(domain)
             await loadAttention()
         } catch {
-            undoFailure = "Atlas could not confirm the undo. The original change may still be in place."
+            undoFailure = UndoConfirmation.failureMessage(nil)  // no answer: the handle is kept so the owner can retry
         }
     }
 

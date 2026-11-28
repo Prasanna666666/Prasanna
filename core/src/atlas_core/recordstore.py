@@ -27,6 +27,7 @@ from .mail import Listed, ListPage
 from .records import Record, RecordError, as_message
 
 SCHEMA_VERSION = 1
+_UNDONE, _UNDO_PENDING = 1, 2  # receipts.undone: 0 eligible, 1 undone, 2 a remote compensation was sent and its outcome is unknown
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS records (record_id TEXT PRIMARY KEY, domain TEXT NOT NULL, version INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, date TEXT NOT NULL, title TEXT NOT NULL, fields TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS history (seq INTEGER PRIMARY KEY AUTOINCREMENT, record_id TEXT NOT NULL, version INTEGER NOT NULL, op TEXT NOT NULL, before TEXT, after TEXT, at TEXT NOT NULL, origin TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
@@ -92,7 +93,7 @@ class RecordStore:
     def receipt(self, action_id: str) -> tuple[str, dict[str, Any], dict[str, Any], bool] | None:
         with self._lock:
             row = self._conn.execute("SELECT name, payload, result, undone FROM receipts WHERE action_id=?", (action_id,)).fetchone()
-        return None if row is None else (str(row["name"]), json.loads(row["payload"]), json.loads(row["result"]), bool(row["undone"]))
+        return None if row is None else (str(row["name"]), json.loads(row["payload"]), json.loads(row["result"]), row["undone"] == _UNDONE)
 
     # -- the audit anchor (ATLAS-ACT-019): the last audit entry's sequence and digest, kept OUTSIDE the audit file, so a deleted or truncated
     # audit is told apart from a first run ----------------------------------------------------------------------------------------------------
@@ -111,6 +112,22 @@ class RecordStore:
     def mark_undone(self, action_id: str) -> None:
         with self._lock:
             self._conn.execute("UPDATE receipts SET undone=1 WHERE action_id=?", (action_id,))
+
+    # The undo intent of an action whose undo is a remote compensation (UC-L14): recorded BEFORE the compensation is sent, cleared only when the
+    # compensation provably did nothing, replaced by the undone mark when it is confirmed. A receipt still holding the intent after an interruption
+    # has an unknown outcome and is never compensated a second time. Stored in the same column (2); a build that predates it reads it as undone.
+    def begin_undo(self, action_id: str) -> bool:
+        with self._lock:
+            return self._conn.execute(f"UPDATE receipts SET undone={_UNDO_PENDING} WHERE action_id=? AND undone=0", (action_id,)).rowcount == 1
+
+    def clear_undo(self, action_id: str) -> None:
+        with self._lock:
+            self._conn.execute(f"UPDATE receipts SET undone=0 WHERE action_id=? AND undone={_UNDO_PENDING}", (action_id,))
+
+    def undo_pending(self, action_id: str) -> bool:
+        with self._lock:
+            row = self._conn.execute("SELECT undone FROM receipts WHERE action_id=?", (action_id,)).fetchone()
+        return row is not None and row["undone"] == _UNDO_PENDING
 
     def close(self) -> None:
         self._conn.close()

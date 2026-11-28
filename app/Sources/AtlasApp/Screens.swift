@@ -280,7 +280,9 @@ struct RecordsView: View {
                         HStack {
                             Label(label, systemImage: "checkmark.circle").foregroundStyle(theme.textSecondary)
                             Spacer()
-                            Button("Undo") { Task { await model.undoLast(domain: domain) } }
+                            if model.undoActionID != nil {  // gone once the Core will refuse it again (an unknown remote outcome)
+                                Button("Undo") { Task { await model.undoLast(domain: domain) } }
+                            }
                             Button("Dismiss") { model.dismissUndo() }
                         }
                         if let message = model.undoFailure {
