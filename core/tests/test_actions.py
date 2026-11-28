@@ -343,3 +343,22 @@ def test_an_approval_granted_before_a_restart_is_honoured_once_after_it_and_neve
     expired = g.propose("calendar.send_invitation", {"to": "y@example.invalid"}, origin="owner_request", idempotency_key="s3", approval_id=late.approval_id)
     assert expired.status == "needs_approval" and outbox.sent == []
     store.close()
+
+
+def test_a_torn_approval_record_never_absorbs_the_next_state_and_corruption_elsewhere_fails_closed(tmp_path):
+    """ATLAS-ACT-019 (review 6097009203): an interrupted write leaves a partial last line. The next append cuts it off first, so the acknowledged
+    `used` state that follows is replayed on the next load and the approval stays consumed. A bad line that is not the torn tail makes the whole
+    state untrusted (the Core then serves no actions), never silently skipped."""
+    from atlas_core.actions import Approval, ApprovalFile
+
+    path = tmp_path / "approvals.jsonl"
+    book = ApprovalFile(path)
+    expires = datetime(2026, 11, 28, 10, 0, tzinfo=UTC)
+    book.append(Approval("a1", "b" * 64, 1, expires, granted=True))
+    with open(path, "ab") as handle:
+        handle.write(b'{"id": "a1", "binding": "')  # the write that was interrupted: no newline
+    book.append(Approval("a1", "b" * 64, 1, expires, granted=True, used=True))
+    assert book.load()["a1"].used is True  # the acknowledged state survives; nothing was absorbed into the torn tail
+    path.write_text(path.read_text() + "not a record\n" + path.read_text().splitlines()[0] + "\n")
+    with pytest.raises(ValueError, match="approval_state_corrupt"):
+        ApprovalFile(path).load()

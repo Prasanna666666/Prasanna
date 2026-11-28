@@ -29,7 +29,7 @@ from typing import Any, Protocol
 from kit.db import connect
 
 from .access import AccessCheck
-from .documents import FETCH_CHUNK, IndexStore, iso_utc, paragraph_blocks, terms
+from .documents import FETCH_CHUNK, IndexStore, paragraph_blocks, terms
 from .evidence import StoredSource, sha256_text
 from .policy import PermissionRevoked
 from .rules import Rules, load_rules
@@ -260,12 +260,16 @@ class MailIndex(IndexStore):
         self.cancelled = threading.Event()
         self._lock = threading.RLock()
         self._conn = connect(path, key)
-        self._conn.isolation_level = None
-        with self._lock:
-            self._conn.executescript(_SCHEMA)
-            if self._conn.execute("PRAGMA user_version").fetchone()[0] > SCHEMA_VERSION:
-                raise ValueError("newer index than this code understands")
-        self._prepare_postings(self._texts)
+        try:  # ATLAS-CORE-084: a constructor that fails after acquiring its connection closes it here, at the acquisition site
+            self._conn.isolation_level = None
+            with self._lock:
+                self._conn.executescript(_SCHEMA)
+                if self._conn.execute("PRAGMA user_version").fetchone()[0] > SCHEMA_VERSION:
+                    raise ValueError("newer index than this code understands")
+            self._prepare_postings(self._texts)
+        except BaseException:
+            self._conn.close()
+            raise
 
     def close(self) -> None:
         self._conn.close()
@@ -438,7 +442,7 @@ class MailIndex(IndexStore):
             "failed_reasons": failed_reasons,
             "scan_complete": scan_done,
             "paused": paused,
-            "newest": iso_utc(newest),
+            "newest_ts": None if newest is None else float(newest),  # seconds since the epoch, UTC: compared as numbers, formatted only for display
         }
         out["complete"] = scan_done and paused is None and out["pending"] == 0 and out["failed"] == 0
         return out

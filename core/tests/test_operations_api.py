@@ -317,3 +317,19 @@ def test_the_review_reports_overlapping_calendar_events_from_the_owners_own_cale
     with pytest.raises(atlas_client.ClientError) as e:
         world.device().review()  # owner client only
     assert e.value.code == "forbidden"
+
+
+def test_approval_state_that_does_not_replay_cleanly_means_the_core_serves_no_actions(tmp_path):
+    """ATLAS-ACT-019: a corrupt line in the approval journal (not a torn tail) makes the approval state untrusted, so the Core serves no actions at
+    all rather than guess which approvals were used."""
+    world = OpsWorld(tmp_path)
+    (tmp_path / "core").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "core" / "actions-approvals.jsonl").write_text("not a record\n{}\n")
+    core = world.build()
+    core.start()
+    try:
+        assert core.operations is None
+        with pytest.raises(atlas_client.ClientError):
+            world.client().act("notes.create", NOTE)
+    finally:
+        world.close()

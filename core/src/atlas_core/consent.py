@@ -12,6 +12,7 @@ from typing import Any
 
 from .access import SourceAccess
 from .designation import DesignationError, DesignationStore, OnboardingDecision, PurgePending, StoreCorrupt
+from .documents import iso_utc
 from .errors import CoreError
 
 
@@ -58,16 +59,18 @@ class ConsentService:
         indexed = total = pending = 0
         failed: dict[str, int] = {}
         unknown = building = False
-        newest: str | None = None
+        newest: float | None = None
         for source_type, index in self._indexes.items():
             if not self._access.permitted(source_type):
                 continue
             report = index.coverage()
+            if not self._access.permitted(source_type):
+                continue  # withdrawn while its coverage was read: nothing of it, counts or timestamp, is delivered
             indexed += report["searched"]
             total += report["total"]
             pending += report["pending"]
-            seen = report.get("newest")
-            newest = seen if seen is not None and (newest is None or seen > newest) else newest  # ISO-8601 UTC strings compare in time order
+            seen = report.get("newest_ts")
+            newest = seen if seen is not None and (newest is None or seen > newest) else newest  # numeric UTC seconds: mixed precision cannot misorder
             building = building or not report["scan_complete"] or report["paused"] is not None or report["pending"] > 0
             for reason, count in report.get("failed_reasons", {}).items():
                 code = _FAILED.get(reason, "extraction_failed")
@@ -77,7 +80,7 @@ class ConsentService:
             "state": state,
             "indexed": indexed,
             "total": None if unknown else total,
-            "newest_indexed": newest,  # the newest permitted item's own timestamp; null when nothing permitted is indexed (never guessed)
+            "newest_indexed": iso_utc(newest),  # the newest permitted item's own timestamp; null when nothing permitted is indexed (never guessed)
             "failed": [{"reason_code": k, "count": v} for k, v in sorted(failed.items())],
         }
 

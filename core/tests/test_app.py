@@ -349,3 +349,45 @@ def test_a_construction_that_fails_partway_closes_every_store_it_had_opened_and_
         core.close()
     finally:
         world.close()
+
+
+@pytest.mark.parametrize("module_name", ["documents", "mail"])
+def test_an_index_whose_constructor_fails_after_opening_its_database_closes_it_and_the_core_restarts(tmp_path, monkeypatch, module_name):
+    """ATLAS-CORE-084 (review 6097009203): the failure is injected INSIDE the Documents or Mail index constructor, after it acquired its
+    connection (the postings upgrade). That connection is closed at the acquisition site, the original error reaches the caller, and the next
+    construction of the whole Core succeeds."""
+    import atlas_core.documents as documents
+    import atlas_core.mail as mail
+
+    module = documents if module_name == "documents" else mail
+    opened: list = []
+    real_connect = module.connect
+
+    def tracking_connect(*args, **kwargs):
+        conn = real_connect(*args, **kwargs)
+        opened.append(conn)
+        return conn
+
+    target = documents.DocumentIndex if module_name == "documents" else mail.MailIndex
+    real_upgrade = documents.IndexStore._prepare_postings
+
+    def broken_upgrade(self, texts):
+        if isinstance(self, target):
+            raise OSError("index upgrade failed")
+        real_upgrade(self, texts)
+
+    world = World(tmp_path, mail=True)
+    monkeypatch.setattr(module, "connect", tracking_connect)
+    monkeypatch.setattr(documents.IndexStore, "_prepare_postings", broken_upgrade)
+    try:
+        with pytest.raises(OSError, match="index upgrade failed"):
+            world.build()
+        assert opened, "the failing constructor opened its database"
+        for conn in opened:
+            with pytest.raises(Exception, match="closed"):
+                conn.execute("SELECT 1")
+        monkeypatch.undo()
+        core = world.build()
+        core.close()
+    finally:
+        world.close()

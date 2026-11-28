@@ -24,11 +24,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
 OUT_V04 = ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json"
-CI_REVISION = "6c35e620517abfed7d45e42b2fd3b6c52afa50a3"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46121860506"
+CI_REVISION = "b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46127625211"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140907912736", "core-3.13": f"{CI_RUN}/job/140907912703", "kit": f"{CI_RUN}/job/140907912724",
-    "macos": f"{CI_RUN}/job/140907912750", "app": f"{CI_RUN}/job/140907912746", "ios": f"{CI_RUN}/job/140907912735",
+    "core-3.11": f"{CI_RUN}/job/140925633071", "core-3.13": f"{CI_RUN}/job/140925632895", "kit": f"{CI_RUN}/job/140925632877",
+    "macos": f"{CI_RUN}/job/140925632932", "app": f"{CI_RUN}/job/140925632992", "ios": f"{CI_RUN}/job/140925632729",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
@@ -40,6 +40,7 @@ V08_REVIEW = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Pr
 AUDIT1 = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7235875772", "7235875772")
 AUDIT2 = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7235938220", "7235938220")
 V09_REVIEW = ("6c35e620517abfed7d45e42b2fd3b6c52afa50a3", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096694534", "6096694534")
+V10_REVIEW = ("b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203", "6097009203")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -449,6 +450,25 @@ def apply_verdicts_6c35e62(criteria: list[dict]) -> list[dict]:
         by[cid]["review"] = _verdict(V09_REVIEW, "pending", note="the predefined Core checkpoint is met (all cited tests passed in exact-head Core JUnit); full credit needs the remaining stage evidence")
     for cid, note in (("UC-L22", "needs a schema 2 to 3 reopen test for Documents and Mail with search and citation from existing records, and interruption or retry evidence"), ("MAC-07", "option (i) chosen; a hosted synthetic contract test of the real test/scan/upload/final-status path is needed"), ("UC-009", "hosted AppModel tests for durable Cancelled across Stop timings"), ("MAC-20", "hosted AppModel tests for truthful incomplete coverage and clearing displayed results on withdrawal")):
         by[cid]["review"] = _verdict(V09_REVIEW, "pending", note=note)
+    return apply_verdicts_b2ca5b3(criteria)
+
+
+def apply_verdicts_b2ca5b3(criteria: list[dict]) -> list[dict]:
+    """The architect's review of b2ca5b3 (review 6097009203)."""
+    by = {c["id"]: c for c in criteria}
+    v = lambda verdict, note: _verdict(V10_REVIEW, verdict, note=note)  # noqa: E731
+    by["MAC-08"]["review"] = v("fail", "both real-screen audits still fail; Dark follow-up and a second hosted macOS/Xcode comparison for Light")
+    by["MAC-06"]["review"] = v("fail", "the required mac-ui job failed")
+    by["UC-009"]["review"] = v("pending", "hosted AppModel integration evidence, including Stop while the answer request is pending, durable Cancelled and no misleading error")
+    by["UC-L22"]["review"] = v("pending", "upgrade evidence met; full credit needs an agreed software-only pass condition naming the multilingual pipeline evidence")
+    by["MAC-07"]["review"] = v("pending", "checkpoint retained; the fixture must share the production steps and prove the same publication and final-failure gates")
+    by["UC-049"]["review"] = v("pending", "a hosted test at the production handoff with the configured gateway: no outbound effect, grant change or URL fetch")
+    by["MAC-20"]["review"] = v("pending", "hosted AppModel tests for truthful incomplete coverage and clearing shown results, including stale continuations")
+    by["UC-L14"]["review"] = v("fail", "the undo effect and the persisted undone marker are separate; recoverable undo intent or one atomic transaction, with fault injection")
+    by["UC-L26"]["review"] = v("fail", "timestamps compared as strings with mixed precision; permission not revalidated at delivery")
+    s308 = by["S3-C08"]
+    s308["implementation"] = {"state": "checkpoint", "evidence": [{**e, "proves": "checkpoint"} for e in s308.get("listed_tests", [])] + [{**test("core/tests/test_app.py", "test_a_construction_that_fails_partway_closes_every_store_it_had_opened_and_releases_the_folder"), "proves": "checkpoint"}, {**ci("core-3.11"), "proves": "checkpoint"}, {**ci("core-3.13"), "proves": "checkpoint"}]}
+    s308["review"] = v("fail", "index constructors acquire their connections before schema checks and rebuild and do not close them on failure")
     return criteria
 
 

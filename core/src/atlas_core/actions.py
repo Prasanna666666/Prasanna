@@ -187,7 +187,8 @@ class IdempotencyFile:
 class ApprovalFile:
     """Pending and granted approvals, kept across a restart (ATLAS-ACT-019): one JSON line per change with the approval id, the binding HASH, the
     category, the expiry and whether it was granted or used. Never the payload. Owner-only (0600), appended and fsynced: `used` is on disk before
-    the approved action runs, so a restart can never let one approval run twice. The last line for an id wins; a torn last line is skipped."""
+    the approved action runs, so a restart can never let one approval run twice. The last line for an id wins; a torn last line is cut off
+    before the next append and ignored on replay; any other bad line makes the state untrusted."""
 
     def __init__(self, path: Path) -> None:
         self._path = path
@@ -201,24 +202,32 @@ class ApprovalFile:
             "granted": approval.granted,
             "used": approval.used,
         }
-        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
-        with os.fdopen(fd, "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(row, sort_keys=True) + "\n")
+        fd = os.open(self._path, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "r+b") as handle:  # framed: a torn last line is cut off first, so this record starts on its own line
+            data = handle.read()
+            if data and not data.endswith(b"\n"):
+                handle.truncate(data.rfind(b"\n") + 1)
+            handle.seek(0, os.SEEK_END)
+            handle.write((json.dumps(row, sort_keys=True) + "\n").encode("utf-8"))
             handle.flush()
             os.fsync(handle.fileno())
 
     def load(self) -> dict[str, Approval]:
+        """Strict replay: every complete line must be a valid record (otherwise ValueError, and the Core serves no actions); only a torn last line,
+        one without its newline, is ignored as the interrupted write it is."""
         found: dict[str, Approval] = {}
         if not self._path.exists():
             return found
-        for line in self._path.read_text(encoding="utf-8").splitlines():
+        data = self._path.read_bytes()
+        complete = data if data.endswith(b"\n") else data[: data.rfind(b"\n") + 1]
+        for line in complete.decode("utf-8").splitlines():
             try:
                 row = json.loads(line)
                 found[row["id"]] = Approval(
                     row["id"], row["binding"], int(row["category"]), datetime.fromisoformat(row["expires_at"]), bool(row["granted"]), bool(row["used"])
                 )
             except (ValueError, KeyError, TypeError):
-                continue
+                raise ValueError("approval_state_corrupt") from None
         return found
 
 

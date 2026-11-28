@@ -192,3 +192,36 @@ def test_the_mode_is_a_1_1_route_and_resets_to_default_when_the_core_restarts(wo
     again = world.build()
     again.start()
     assert owner(world).mode() == "default"  # the deep tier is never on after a restart by accident
+
+
+class _Index:
+    def __init__(self, newest_ts):
+        self.newest_ts = newest_ts
+
+    def coverage(self):
+        return {"searched": 1, "total": 1, "pending": 0, "scan_complete": True, "paused": None, "failed_reasons": {}, "newest_ts": self.newest_ts}
+
+
+class _Access:
+    """Permitted per source; `withdraw_after_read` withdraws a source between its first check and the re-check after its coverage was read."""
+
+    def __init__(self, withdraw_after_read=()):
+        self.checks, self.withdraw = {}, set(withdraw_after_read)
+
+    def permitted(self, source_type):
+        self.checks[source_type] = self.checks.get(source_type, 0) + 1
+        return not (source_type in self.withdraw and self.checks[source_type] > 1)
+
+
+def test_newest_indexed_compares_times_as_numbers_and_never_reports_a_source_withdrawn_while_it_was_read():
+    """UC-L26 (review 6097009203): within one UTC second a whole-second time and a later fractional one are ordered by value, not by their text;
+    and a source withdrawn while its coverage was being read contributes nothing (no count, no timestamp)."""
+    from atlas_core.consent import ConsentService
+    from atlas_core.documents import iso_utc
+
+    whole, later = 1_790_000_000.0, 1_790_000_000.25  # the same second: "...:20Z" sorts after "...:20.250000Z" as text
+    assert iso_utc(whole) > iso_utc(later)  # the trap the string comparison fell into
+    both = ConsentService(None, _Access(), {"documents": _Index(later), "mail": _Index(whole)}).index_status()
+    assert both["newest_indexed"] == iso_utc(later) and both["indexed"] == 2
+    raced = ConsentService(None, _Access(withdraw_after_read={"documents"}), {"documents": _Index(later), "mail": _Index(whole)}).index_status()
+    assert raced["newest_indexed"] == iso_utc(whole) and raced["indexed"] == 1 and raced["total"] == 1
