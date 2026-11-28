@@ -23,6 +23,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         for name in names {
             stateObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { _ in MainActor.assumeIsolated { Self.recordState(name.rawValue, to: path) } })
         }
+        if ProcessInfo.processInfo.environment["ATLAS_UI_TEST_KEY_WINDOW"] == "1" {
+            // UI-test diagnostics (MAC-08 option a): on the hosted runner the window became main but never key, and macOS reported it occluded.
+            // Make it key and front once it is main, so the audit measures an active, key, visible window; the app's state file records the result.
+            stateObservers.append(NotificationCenter.default.addObserver(forName: NSWindow.didBecomeMainNotification, object: nil, queue: .main) { note in
+                MainActor.assumeIsolated {
+                    guard let window = note.object as? NSWindow, !window.isKeyWindow else { return }
+                    NSApp.activate(ignoringOtherApps: true)
+                    window.makeKeyAndOrderFront(nil)
+                    window.orderFrontRegardless()
+                    Self.recordState("made-key", to: path)
+                }
+            })
+        }
         #endif
     }
 

@@ -85,6 +85,7 @@ final class AccessibilityAuditTests: XCTestCase {
         let stateFile = NSTemporaryDirectory() + "atlas-audit-state-\(appearance).txt"
         try? FileManager.default.removeItem(atPath: stateFile)
         app.launchEnvironment["ATLAS_UI_TEST_STATE_FILE"] = stateFile
+        app.launchEnvironment["ATLAS_UI_TEST_KEY_WINDOW"] = "1"  // audited as a key, front window (the hosted runner left it main but not key)
         print("AUDIT APPEARANCE requested: \(appearance)")
         app.launch()
         app.activate()  // audited as the active, key window, so an inactive-window rendering is not what is measured
@@ -107,6 +108,8 @@ final class AccessibilityAuditTests: XCTestCase {
         keep(app, "first-screen-\(appearance)")
         let paragraph = app.staticTexts["Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer."]
         states(app, paragraph, "AUDIT STATE [\(appearance)]", stateFile)
+        let recorded = (try? String(contentsOfFile: stateFile, encoding: .utf8)) ?? ""
+        print("AUDIT WINDOW KEY [\(appearance)]: \(recorded.split(separator: "\n").last.map { $0.contains("key=true") } ?? false)")  // recorded, not asserted: the gate stays the audit
         try app.performAccessibilityAudit { issue in
             let element = issue.element.map { "\($0.elementType.rawValue) '\($0.label)' \($0.identifier)" } ?? "no element"
             let line = "AUDIT ISSUE [\(appearance)]: \(issue.auditType) | \(issue.compactDescription) | \(issue.detailedDescription) | \(element) | \(issue.element?.debugDescription ?? "")"
