@@ -113,7 +113,7 @@ def stage_3() -> list[dict]:
                  f"Criterion {n} ({_plain(cells[1])}) is met on the candidate build: every test listed for it at the source reference passes in the candidate's hosted Core CI, and the limitation recorded there is closed.",
                  "The listed tests passing in the candidate's hosted Core CI; target or owner evidence for any final-stage portion",
                  "MET-L: met locally with synthetic data; every test listed for the criterion passes in the candidate's hosted Core CI",
-                 source="stage3", state=state, evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else [], recorded_status=status)  # fmt: skip
+                 source="stage3", state=state, evidence=[*tests, ci("core-3.11"), ci("core-3.13")] if state != "none" else [], recorded_status=status, listed_tests=tests)  # fmt: skip
         out.append(c)
     by = {c["id"]: c for c in out}
     by["S3-C06"]["review"] = {"verdict": "pass", "revision": "14b471bf589303cf25f5d781f8aaf62b0f5654e0", "link": "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6014101078", "reviewer": "architect", "review_id": "6014101078", "historical": True, "scope_note": "MET-L for the exact-read attachment restriction only; the broader criterion and final Mac evidence stay open"}  # fmt: skip
@@ -468,6 +468,10 @@ V04_DEVICE_ONLY_GAPS["PRD-3-06"] = ("the owner's selected model, quantisation, c
     ("core/tests/test_api_v11.py", "test_a_1_1_answer_carries_coverage_model_and_the_echo_header"),
     ("core/tests/test_api_v11.py", "test_a_withheld_1_1_answer_reports_no_coverage_of_the_revoked_source_and_no_model"),
 ])
+# Stage 3 rows whose own checkpoint (MET-L: every listed test passes in hosted CI) is met although their status cell starts with PARTIAL: the
+# local scope is stated as met, and the remainder is a real-model or final-stage portion. S3-C07's PARTIAL awaited exact-head CI, which has
+# since passed on every head. S3-C08 is not included: it records an open defect (ATLAS-CORE-084).
+V04_STAGE3_CHECKPOINT = ("S3-C04", "S3-C07", "S3-C11")
 # Rows whose recorded gap a later, architect-passed change closed: the gap's own evidence is cited.
 V04_GAP_CLOSED = {
     "UC-L19": ("ATLAS-CORE-092 (the API read-after-check race) is closed by MAC-11, MAC-12 and MAC-15, each passed by the architect", [
@@ -501,6 +505,10 @@ def apply_v04(criteria: list[dict]) -> list[dict]:
         c["pass_condition"] = f"The software part of the requirement is met as specified on the candidate build; the remaining device-only verification ({device}) is {cid}-DEV."
         _full(c, refs, "software complete; only device verification remains (split to the -DEV row)")
         V04_SPLITS.setdefault(cid, device)
+    for cid in V04_STAGE3_CHECKPOINT:
+        c = by[cid]
+        if c["implementation"]["state"] == "none" and c.get("listed_tests"):
+            c["implementation"] = {"state": "checkpoint", "evidence": [{**e, "proves": "checkpoint"} for e in (*c["listed_tests"], ci("core-3.11"), ci("core-3.13"))]}
     for cid, (note, refs) in V04_GAP_CLOSED.items():
         _full(by[cid], refs, note)
     for cid, device in V04_SPLITS.items():

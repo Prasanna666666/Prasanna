@@ -311,7 +311,49 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "MET-L. The real OS permission (TCC) and first-run Get Started screen are M; the consent routes are served and owner-only (tests/test_consent_api.py); the Get Started screen exists as Swift source, compiles on a hosted macOS CI runner, and the packaged app has been launched in hosted CI; no person has completed its UI/accessibility walkthrough."
+   "recorded_status": "MET-L. The real OS permission (TCC) and first-run Get Started screen are M; the consent routes are served and owner-only (tests/test_consent_api.py); the Get Started screen exists as Swift source, compiles on a hosted macOS CI runner, and the packaged app has been launched in hosted CI; no person has completed its UI/accessibility walkthrough.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_designation.py::test_a_fresh_install_enables_nothing_and_everything_is_denied"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_designation.py::test_no_folder_byte_is_touched_unless_consent_and_the_platform_permission_are_both_current"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mail.py::test_with_nothing_enabled_no_adapter_call_is_made_by_any_step"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_documents.py::test_without_a_grant_nothing_is_searched_or_read"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_app.py::test_nothing_is_read_or_answered_until_the_owner_enables_a_source"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mail.py::test_a_documents_grant_never_implies_mail_and_each_type_is_judged_on_its_own"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_consent_api.py::test_only_an_enrolled_owner_client_may_read_or_change_consent_and_any_client_may_read_index_counts"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_consent_api.py::test_a_replayed_request_changes_nothing"
+    }
+   ]
   },
   {
    "id": "S3-C02",
@@ -344,6 +386,43 @@
     "verdict": null
    },
    "recorded_status": "PARTIAL: task retrieval/model boundaries and purge paths are tested, but separate API read surfaces are not fully covered. finance_summary() and health_summary() read after one grant decision without revalidating before response; library_search() and passage() likewise lack a final grant-identity/expiry check after content retrieval. A concurrent revoke can race with the response (ATLAS-CORE-092, P1, OPEN). Add deterministic revoke-during-read tests and revalidate immediately before returning content. Real OS permission and secure-storage anchor remain injected seams (M).",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_designation.py::test_withdrawing_consent_revokes_at_once_purges_and_a_regrant_is_a_new_identity"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_designation.py::test_consent_withdrawn_during_a_task_stops_the_next_read_and_the_model"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_retention.py::test_purge_removes_the_content_of_a_revoked_type_from_answers_events_and_checkpoints_and_is_idempotent"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_retention.py::test_a_regrant_does_not_bring_purged_content_back"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_revoking_a_source_hides_the_answer_with_an_explanation"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_app.py::test_withdrawing_consent_purges_the_index_and_everything_tasks_derived_from_it"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_app.py::test_the_os_taking_its_permission_back_ends_the_grant_and_purges"
+    }
+   ],
    "composed_of": [
     "MAC-11",
     "MAC-12",
@@ -415,7 +494,24 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "MET-L for plain text and mail bodies. Locators for PDF/Office/attachments are in the contract, not built."
+   "recorded_status": "MET-L for plain text and mail bodies. Locators for PDF/Office/attachments are in the contract, not built.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_documents.py::test_a_changed_or_deleted_file_fails_closed_and_old_citations_stop_resolving"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mail.py::test_a_changed_or_deleted_message_fails_closed_and_old_citations_stop_resolving"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_evals.py::test_every_case_behaves_as_specified_through_the_real_pipeline"
+    }
+   ]
   },
   {
    "id": "S3-C04",
@@ -439,13 +535,76 @@
    "required_evidence": "The listed tests passing in the candidate's hosted Core CI; target or owner evidence for any final-stage portion",
    "checkpoint": "MET-L: met locally with synthetic data; every test listed for the criterion passes in the candidate's hosted Core CI",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "checkpoint",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_mail.py::test_hostile_instructions_in_a_message_change_no_scope_no_grant_and_trigger_nothing",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_documents.py::test_instructions_inside_a_document_are_data_not_commands",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_mlx_runtime.py::test_the_prompt_marks_passages_as_untrusted_data_and_numbers_them",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_evals.py::test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     }
+    ]
    },
    "review": {
     "verdict": null
    },
-   "recorded_status": "PARTIAL: the pipeline-level scope is met and tested (L); the real-model part is deferred to the final stage and is not met (no new evidence). Pipeline resistance is L; resistance of a real model to prompt injection is M (the scripted model obeys the injection on purpose and the pipeline refuses to present it as grounded)."
+   "recorded_status": "PARTIAL: the pipeline-level scope is met and tested (L); the real-model part is deferred to the final stage and is not met (no new evidence). Pipeline resistance is L; resistance of a real model to prompt injection is M (the scripted model obeys the injection on purpose and the pipeline refuses to present it as grounded).",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mail.py::test_hostile_instructions_in_a_message_change_no_scope_no_grant_and_trigger_nothing"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_documents.py::test_instructions_inside_a_document_are_data_not_commands"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mlx_runtime.py::test_the_prompt_marks_passages_as_untrusted_data_and_numbers_them"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_evals.py::test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded"
+    }
+   ]
   },
   {
    "id": "S3-C05",
@@ -528,7 +687,39 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "MET-L (synthetic) for the policy and gate, per G-021 and the plan's \"synthetic policy and integration tests\": a Finance or Health task is allowed only with a current, unrevoked, purpose-bound grant for exactly that domain whose ceiling reaches restricted; a Documents grant, another domain's grant or a lower ceiling never opens it (restricted_domain); only the domain the task names is searched, passages stay labelled with their domain, revocation ends the authority before anything more is read or sent (the same revalidation as every source), and no event, log line or output carries content. The owner-facing Settings/area enable controls and owner-only /v1/consent API exist; Get Started itself offers only Documents and Mail. Finance has a legacy maintenance import-finance path for the transactions table only, not a general provider connector; that import has not been run against the owner's real database. Health has an encrypted store/area but no importer or HealthKit/native Health source adapter. Therefore real Finance/Health source ingestion and real owner-data flow are not verified; the real-model behaviour of Finance/Health prompts is M."
+   "recorded_status": "MET-L (synthetic) for the policy and gate, per G-021 and the plan's \"synthetic policy and integration tests\": a Finance or Health task is allowed only with a current, unrevoked, purpose-bound grant for exactly that domain whose ceiling reaches restricted; a Documents grant, another domain's grant or a lower ceiling never opens it (restricted_domain); only the domain the task names is searched, passages stay labelled with their domain, revocation ends the authority before anything more is read or sent (the same revalidation as every source), and no event, log line or output carries content. The owner-facing Settings/area enable controls and owner-only /v1/consent API exist; Get Started itself offers only Documents and Mail. Finance has a legacy maintenance import-finance path for the transactions table only, not a general provider connector; that import has not been run against the owner's real database. Health has an encrypted store/area but no importer or HealthKit/native Health source adapter. Therefore real Finance/Health source ingestion and real owner-data flow are not verified; the real-model behaviour of Finance/Health prompts is M.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_policy.py::test_an_owner_authorised_finance_task_lets_the_local_model_read_finance_and_nothing_else"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_policy.py::test_a_restricted_domain_needs_its_own_grant_with_a_restricted_ceiling"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_policy.py::test_a_task_authorised_for_one_restricted_domain_never_reaches_the_other"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_policy.py::test_revoking_a_finance_grant_ends_the_authority_before_anything_more_is_read_or_sent"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_evals.py::test_the_set_covers_english_dutch_and_non_latin_scripts_and_every_required_category"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_no_question_or_source_content_reaches_any_log_or_output_on_normal_failure_cancel_and_revocation_paths"
+    }
+   ]
   },
   {
    "id": "S3-C06",
@@ -622,7 +813,44 @@
     "review_id": "6093128990",
     "note": "the broader criterion needs matching evidence; the exact-read portion is S3-C06-EXACTREAD"
    },
-   "recorded_status": "MET-L, as written (\"attachment contents are never read\"): the real EMLX reader (macos.EmlxMailbox) reads one byte per os.read up to the end of a line, so it cannot read ahead across a MIME boundary or past the blank line that ends a header block. Listing reads exactly the count line and the headers; reading a message reads exactly up to and including the delimiter line that ends the first text/plain part and stops, so no byte of any attachment is read (adapter-level tests instrument every os.read: a short text body followed immediately by a small attachment inside the same 4 KiB window, a header block with a payload right behind it, and an exact byte count of what was consumed). Consequence, stated: a message whose first body part is a non-text payload (an attachment, an image) before the text is unreadable (listed, counted as unreadable, not indexed) because finding the text behind it would mean reading the attachment; the owner may later decide to trade that for reading past such parts. Every mail answer carries attachments_not_searched. The attachment package (G-O18 format matrix, OCR, parser isolation) is not built, by design."
+   "recorded_status": "MET-L, as written (\"attachment contents are never read\"): the real EMLX reader (macos.EmlxMailbox) reads one byte per os.read up to the end of a line, so it cannot read ahead across a MIME boundary or past the blank line that ends a header block. Listing reads exactly the count line and the headers; reading a message reads exactly up to and including the delimiter line that ends the first text/plain part and stops, so no byte of any attachment is read (adapter-level tests instrument every os.read: a short text body followed immediately by a small attachment inside the same 4 KiB window, a header block with a payload right behind it, and an exact byte count of what was consumed). Consequence, stated: a message whose first body part is a non-text payload (an attachment, an image) before the text is unreadable (listed, counted as unreadable, not indexed) because finding the text behind it would mean reading the attachment; the owner may later decide to trade that for reading past such parts. Every mail answer carries attachments_not_searched. The attachment package (G-O18 format matrix, OCR, parser isolation) is not built, by design.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_macos.py::test_not_one_attachment_byte_is_read_even_when_it_lies_within_the_same_4k_window_as_the_text"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_macos.py::test_an_attachment_before_the_text_makes_the_message_unreadable_and_its_payload_is_never_read"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_macos.py::test_a_header_block_is_read_up_to_its_blank_line_and_no_prefetch_reaches_the_payload_behind_it"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_macos.py::test_listing_reads_exactly_the_count_line_and_the_headers_and_not_the_body"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mail.py::test_attachments_and_any_extra_field_are_never_stored_listed_searched_or_counted"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mail.py::test_the_core_never_touches_the_attachments_of_a_fixture"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_mail.py::test_a_question_is_answered_from_the_mailbox_with_a_citation_to_the_exact_body_span"
+    }
+   ]
   },
   {
    "id": "S3-C07",
@@ -646,13 +874,120 @@
    "required_evidence": "The listed tests passing in the candidate's hosted Core CI; target or owner evidence for any final-stage portion",
    "checkpoint": "MET-L: met locally with synthetic data; every test listed for the criterion passes in the candidate's hosted Core CI",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "checkpoint",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_exact.py::test_arithmetic_is_exact_not_float",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_exact.py::test_month_arithmetic_clamps_and_says_so",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_exact.py::test_conversion_refuses_unknown_and_mixed_dimensions",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_exact.py::test_compute_results_have_the_contract_shape_and_say_when_a_value_is_not_a_finite_decimal",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_exact.py::test_terminating_decimal_keeps_all_digits_beyond_decimal_context",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_api_v11.py::test_the_compute_route_is_1_1_only_exact_validated_and_leaks_nothing",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_client.py::test_exact_computations_go_through_the_signed_contract_and_never_through_a_model",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_evals.py::test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     }
+    ]
    },
    "review": {
     "verdict": null
    },
-   "recorded_status": "PARTIAL pending exact-head CI: the integer/string conversion patch now derives decimal scale from the reduced denominator and avoids Decimal-context division; regression coverage includes positive, negative and >28-significant-digit terminating results (test_terminating_decimal_keeps_all_digits_beyond_decimal_context). ATLAS-EXACT-106 remains open until the exact-head suite validates the patch. The typed model-tool path during ordinary answer generation is not built (no tools exist in this slice). Not built: letting the model call a typed tool during an answer (no tools exist in this slice)."
+   "recorded_status": "PARTIAL pending exact-head CI: the integer/string conversion patch now derives decimal scale from the reduced denominator and avoids Decimal-context division; regression coverage includes positive, negative and >28-significant-digit terminating results (test_terminating_decimal_keeps_all_digits_beyond_decimal_context). ATLAS-EXACT-106 remains open until the exact-head suite validates the patch. The typed model-tool path during ordinary answer generation is not built (no tools exist in this slice). Not built: letting the model call a typed tool during an answer (no tools exist in this slice).",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_exact.py::test_arithmetic_is_exact_not_float"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_exact.py::test_month_arithmetic_clamps_and_says_so"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_exact.py::test_conversion_refuses_unknown_and_mixed_dimensions"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_exact.py::test_compute_results_have_the_contract_shape_and_say_when_a_value_is_not_a_finite_decimal"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_exact.py::test_terminating_decimal_keeps_all_digits_beyond_decimal_context"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_api_v11.py::test_the_compute_route_is_1_1_only_exact_validated_and_leaks_nothing"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_exact_computations_go_through_the_signed_contract_and_never_through_a_model"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_evals.py::test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded"
+    }
+   ]
   },
   {
    "id": "S3-C08",
@@ -682,7 +1017,34 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "PARTIAL: crash-boundary recovery and cancellation races are tested, but graceful shutdown is not safe when a worker exceeds the five-second join: Core.close() closes SQLite dependencies while the worker may still be active (ATLAS-CORE-083, P1, OPEN). Failed partial construction also leaves opened stores unclosed (ATLAS-CORE-084, P2, OPEN). Add blocked-worker shutdown and staged-construction-failure tests. Power loss and FileVault behaviour remain M."
+   "recorded_status": "PARTIAL: crash-boundary recovery and cancellation races are tested, but graceful shutdown is not safe when a worker exceeds the five-second join: Core.close() closes SQLite dependencies while the worker may still be active (ATLAS-CORE-083, P1, OPEN). Failed partial construction also leaves opened stores unclosed (ATLAS-CORE-084, P2, OPEN). Add blocked-worker shutdown and staged-construction-failure tests. Power loss and FileVault behaviour remain M.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_tasks.py::test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_a_crash_in_the_middle_of_indexing_resumes_to_the_same_index"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_retention.py::test_a_cancel_racing_a_run_ends_in_exactly_one_consistent_terminal_state"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_retention.py::test_concurrent_submits_with_one_idempotency_key_create_one_task"
+    }
+   ]
   },
   {
    "id": "S3-C09",
@@ -765,7 +1127,39 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "MET-L. Logs, stdout/stderr and API responses are scanned for sentinels across normal, failure, cancel, revocation and hostile-input paths, and the CI core job saves its pytest log and JUnit report, scans them with tools/scan_artefacts.py (fails on any sentinel, never prints one) and uploads them (tests/test_artefact_scan.py). Scope: the artefacts the workflow produces today (the test log and report, per Python version); the macOS jobs' logs are not yet scanned, and the SBOM is generated by a different job."
+   "recorded_status": "MET-L. Logs, stdout/stderr and API responses are scanned for sentinels across normal, failure, cancel, revocation and hostile-input paths, and the CI core job saves its pytest log and JUnit report, scans them with tools/scan_artefacts.py (fails on any sentinel, never prints one) and uploads them (tests/test_artefact_scan.py). Scope: the artefacts the workflow produces today (the test log and report, per Python version); the macOS jobs' logs are not yet scanned, and the SBOM is generated by a different job.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_artefact_scan.py::test_the_scanner_passes_clean_artefacts_and_fails_on_any_sentinel_without_printing_it"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_artefact_scan.py::test_the_ci_core_job_saves_its_artefacts_scans_them_and_uploads_them"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_redaction.py::test_a_normal_run_over_documents_and_mail_writes_no_content"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_no_question_or_source_content_reaches_any_log_or_output_on_normal_failure_cancel_and_revocation_paths"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_rejection_and_failure_reasons_of_the_model_layer_carry_no_path_or_content"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_random_malformed_requests_never_crash_the_api_leak_content_or_return_a_server_error"
+    }
+   ]
   },
   {
    "id": "S3-C10",
@@ -842,7 +1236,34 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "MET-L through the reference client; the app's own rendering is M."
+   "recorded_status": "MET-L through the reference client; the app's own rendering is M.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_every_value_of_every_closed_vocabulary_has_a_message"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_an_unavailable_model_is_reported_in_plain_words_without_a_trace"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_a_half_built_index_gives_an_answer_that_says_indexing_is_incomplete"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_disk_pressure_pauses_indexing_and_says_so_then_resumes"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_api_v11.py::test_coverage_states_are_honest_and_tie_to_limitations"
+    }
+   ]
   },
   {
    "id": "S3-C11",
@@ -866,13 +1287,263 @@
    "required_evidence": "The listed tests passing in the candidate's hosted Core CI; target or owner evidence for any final-stage portion",
    "checkpoint": "MET-L: met locally with synthetic data; every test listed for the criterion passes in the candidate's hosted Core CI",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "checkpoint",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_architecture.py::test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_egress.py::test_a_query_with_private_content_or_an_identifier_is_refused_before_anything_is_sent",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_egress.py::test_a_task_with_finance_or_health_data_in_its_context_may_not_use_the_network_at_all",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_research.py::test_public_research_is_off_by_default_even_with_a_gateway_configured",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_research.py::test_a_public_query_returns_untrusted_data_with_provenance_and_does_not_change_the_answer",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_research.py::test_a_query_that_repeats_the_tasks_private_context_is_refused_before_anything_is_sent",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_research.py::test_a_task_with_finance_or_health_in_scope_may_not_use_the_network_at_all",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_isolated.py::test_the_worker_has_no_flag_that_skips_its_confinement",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_architecture.py::test_a_model_is_reachable_only_through_the_gate_and_a_context_is_built_only_there",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_architecture.py::test_only_the_mlx_adapter_names_the_inference_library_and_no_model_module_can_reach_the_network_or_unpickle",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_the_gate_remains_the_only_door_and_the_identity_survives_it",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_every_answer_logs_one_content_free_routing_event_with_a_closed_reason",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_consent_api.py::test_only_an_owner_client_selects_the_model_mode_it_starts_as_default_and_the_gateway_follows_it",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_gateway_never_opens_a_network_connection",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_memory_pressure_follows_the_recorded_order_and_stops_as_soon_as_the_model_fits",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_intelligence.py::test_a_model_is_never_unloaded_while_another_request_is_using_it",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_models.py::test_a_changed_file_after_import_is_refused_even_if_the_size_matches",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_models.py::test_a_symlinked_parent_directory_cannot_redirect_a_manifest_path_out_of_the_model_folder",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_models.py::test_the_runtime_is_given_a_folder_with_only_the_manifest_files",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_isolated.py::test_inside_the_worker_no_network_socket_can_be_opened_but_unix_sockets_and_pipes_work",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_isolated.py::test_a_worker_that_cannot_confine_itself_is_never_used",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "checkpoint"
+     }
+    ]
    },
    "review": {
     "verdict": null
    },
-   "recorded_status": "PARTIAL: the testable scope is met (L, and R on a hosted macOS runner); the remainder is deferred to the final stage and is not met (no new evidence). L: the model engine runs in a separate worker process whose network sockets the OS refuses (seccomp, verified on Linux), loaded only from a staged folder holding just the manifest's verified files, with every path opened without following links (docs/MODEL_RUNTIME.md). R (macOS runner, CI-verified): the real sandbox-exec profile (TCP and UDP egress denied, file writes denied, private files unreadable except the model folder, no other program runnable, every Mach lookup denied except ten measured services; the known network-capable service list is disjoint, but no complete Mach-service proxy audit exists; a real small MLX model loads and generates inside it (docs/MODEL_RUNTIME.md). Deferred to the final stage, not tested now: the macOS profile is allow-by-default with those denials and is not least privilege; allowed Mach services could still proxy network activity and the complete service surface is not audited; the isolation has not been exercised with the owner's real models or on the owner's Mac; and public research is exposed as a separate API 1.1 operation, not integrated into ordinary answer generation; it has never touched the real Internet."
+   "recorded_status": "PARTIAL: the testable scope is met (L, and R on a hosted macOS runner); the remainder is deferred to the final stage and is not met (no new evidence). L: the model engine runs in a separate worker process whose network sockets the OS refuses (seccomp, verified on Linux), loaded only from a staged folder holding just the manifest's verified files, with every path opened without following links (docs/MODEL_RUNTIME.md). R (macOS runner, CI-verified): the real sandbox-exec profile (TCP and UDP egress denied, file writes denied, private files unreadable except the model folder, no other program runnable, every Mach lookup denied except ten measured services; the known network-capable service list is disjoint, but no complete Mach-service proxy audit exists; a real small MLX model loads and generates inside it (docs/MODEL_RUNTIME.md). Deferred to the final stage, not tested now: the macOS profile is allow-by-default with those denials and is not least privilege; allowed Mach services could still proxy network activity and the complete service surface is not audited; the isolation has not been exercised with the owner's real models or on the owner's Mac; and public research is exposed as a separate API 1.1 operation, not integrated into ordinary answer generation; it has never touched the real Internet.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_architecture.py::test_only_the_egress_gateway_and_the_local_transport_can_open_a_network_connection"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_egress.py::test_a_query_with_private_content_or_an_identifier_is_refused_before_anything_is_sent"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_egress.py::test_a_task_with_finance_or_health_data_in_its_context_may_not_use_the_network_at_all"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_research.py::test_public_research_is_off_by_default_even_with_a_gateway_configured"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_research.py::test_a_public_query_returns_untrusted_data_with_provenance_and_does_not_change_the_answer"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_research.py::test_a_query_that_repeats_the_tasks_private_context_is_refused_before_anything_is_sent"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_research.py::test_a_task_with_finance_or_health_in_scope_may_not_use_the_network_at_all"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_isolated.py::test_the_worker_has_no_flag_that_skips_its_confinement"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_architecture.py::test_a_model_is_reachable_only_through_the_gate_and_a_context_is_built_only_there"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_architecture.py::test_only_the_mlx_adapter_names_the_inference_library_and_no_model_module_can_reach_the_network_or_unpickle"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_intelligence.py::test_the_gate_remains_the_only_door_and_the_identity_survives_it"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_intelligence.py::test_every_answer_logs_one_content_free_routing_event_with_a_closed_reason"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_consent_api.py::test_only_an_owner_client_selects_the_model_mode_it_starts_as_default_and_the_gateway_follows_it"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_intelligence.py::test_gateway_never_opens_a_network_connection"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_intelligence.py::test_memory_pressure_follows_the_recorded_order_and_stops_as_soon_as_the_model_fits"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_intelligence.py::test_a_model_is_never_unloaded_while_another_request_is_using_it"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_models.py::test_a_changed_file_after_import_is_refused_even_if_the_size_matches"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_models.py::test_a_symlinked_parent_directory_cannot_redirect_a_manifest_path_out_of_the_model_folder"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_models.py::test_the_runtime_is_given_a_folder_with_only_the_manifest_files"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_isolated.py::test_inside_the_worker_no_network_socket_can_be_opened_but_unix_sockets_and_pipes_work"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_isolated.py::test_a_worker_that_cannot_confine_itself_is_never_used"
+    }
+   ]
   },
   {
    "id": "S3-C12",
@@ -902,7 +1573,34 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "PARTIAL: the harness, synthetic sets and a developer-machine ingestion run exist (L); real-model, target-hardware numbers and accepted thresholds are deferred to the final stage and are not met (no new evidence). Harness, synthetic sets and a developer-machine ingestion run exist and are labelled. No target-Mac, real-model latency, memory, thermal or quality number exists. Proposed thresholds now exist in evals/thresholds_proposed.json and synthetic quality/overhead gates are enforced in CI; architect/owner acceptance of those thresholds and target-Mac measurements remain pending. Retrieval no longer scans every item (term index; 41 ms p50 at 26,000 synthetic mail items on a development container, docs/WP3_6_RELIABILITY.md)."
+   "recorded_status": "PARTIAL: the harness, synthetic sets and a developer-machine ingestion run exist (L); real-model, target-hardware numbers and accepted thresholds are deferred to the final stage and are not met (no new evidence). Harness, synthetic sets and a developer-machine ingestion run exist and are labelled. No target-Mac, real-model latency, memory, thermal or quality number exists. Proposed thresholds now exist in evals/thresholds_proposed.json and synthetic quality/overhead gates are enforced in CI; architect/owner acceptance of those thresholds and target-Mac measurements remain pending. Retrieval no longer scans every item (term index; 41 ms p50 at 26,000 synthetic mail items on a development container, docs/WP3_6_RELIABILITY.md).",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_evals.py::test_retrieval_and_answer_quality_are_reported_separately_per_language_and_script"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_evals.py::test_the_report_states_what_it_does_not_measure"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_search_index.py::test_document_search_equals_ranking_every_passage"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_search_index.py::test_mail_search_equals_ranking_every_passage"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_reliability.py::test_the_evaluation_and_ingestion_tools_print_only_their_labelled_report"
+    }
+   ]
   },
   {
    "id": "S3-C13",
@@ -933,6 +1631,33 @@
     "verdict": null
    },
    "recorded_status": "PENDING-M: the reference client and the app's launcher, gate, Get Started logic, pending-Stop state and explicit Undo confirmation helpers are tested (L, R); the macOS UI accessibility test now waits for the expected first-run/Home screen and no longer exempts contrast findings using screenshot pixel extrema (current patch pending exact-head CI); the human walkthrough and owner-hardware items are deferred to the final stage and are not met (no new evidence). Distinguish: the app has been built and launched in hosted CI (the app job builds Atlas.app, launches it, checks it starts its Core and that the Core stops when the app is terminated, and uploads an unsigned artefact), and its launcher, client, Get Started logic and submission gate are tested in swift test on a macOS runner. No person has completed a UI walkthrough: windows, Get Started as seen, conversation, progress, cancel, citation inspector, accessibility (VoiceOver, keyboard, Dynamic Type) are unverified, and so are the owner-Mac items (real TCC prompts, a real Apple Mail store, signing, notarisation, model installation). Source present and a launch in CI are not behaviour accepted.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_a_question_is_answered_with_progress_citations_model_identity_and_coverage"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_cancel_stops_a_queued_task_with_plain_words"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_the_cited_passage_can_be_opened_exactly_and_stops_opening_when_the_source_changes_or_is_revoked"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_client.py::test_dutch_and_hindi_questions_round_trip_through_the_whole_path"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_enrolment.py::test_a_fresh_install_enrols_its_owner_client_unsigned_once_and_can_then_act_as_owner"
+    }
+   ],
    "composed_of": [
     "S3-C13-REF",
     "UC-009",
@@ -1002,7 +1727,19 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "MET-L."
+   "recorded_status": "MET-L.",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_stage3_acceptance.py::test_every_criterion_is_present_with_evidence_status_and_limitation"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_stage3_acceptance.py::test_every_test_named_in_the_stage_3_documents_exists"
+    }
+   ]
   },
   {
    "id": "S3-C15",
@@ -1061,7 +1798,19 @@
    "review": {
     "verdict": null
    },
-   "recorded_status": "MET-L. Rollback: delete the new Core folder; no legacy component was changed (see docs/ROLLBACK.md)."
+   "recorded_status": "MET-L. Rollback: delete the new Core folder; no legacy component was changed (see docs/ROLLBACK.md).",
+   "listed_tests": [
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_tasks.py::test_no_source_file_names_an_existing_database_or_writes_outside_its_own_store"
+    },
+    {
+     "kind": "test",
+     "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+     "ref": "core/tests/test_tasks.py::test_the_task_store_is_a_new_encrypted_file_with_its_own_key_and_nothing_else_is_touched"
+    }
+   ]
   },
   {
    "id": "S3-C02-TASK",
