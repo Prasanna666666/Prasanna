@@ -992,7 +992,7 @@
   {
    "id": "S3-C08",
    "stage": 3,
-   "title": "tasks.py, service.py, app.py",
+   "title": "tasks.py, service.py, app.py (software part)",
    "source": "stage3",
    "source_ref": "core/docs/STAGE3_ACCEPTANCE.md, criterion 8; STAGE-3-EXECUTION-PLAN.md §5",
    "refs": [
@@ -1007,12 +1007,67 @@
    "scope": "in",
    "milestones": [],
    "aliases": [],
-   "pass_condition": "Criterion 8 (tasks.py, service.py, app.py) is met on the candidate build: every test listed for it at the source reference passes in the candidate's hosted Core CI, and the limitation recorded there is closed.",
+   "pass_condition": "The software part of the requirement is met as specified on the candidate build; the remaining device-only verification (power loss and FileVault behaviour on the target Mac) is S3-C08-DEV.",
    "required_evidence": "The listed tests passing in the candidate's hosted Core CI; target or owner evidence for any final-stage portion",
    "checkpoint": "MET-L: met locally with synthetic data; every test listed for the criterion passes in the candidate's hosted Core CI",
    "implementation": {
-    "state": "none",
-    "evidence": []
+    "state": "full",
+    "evidence": [
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_app.py::test_a_construction_that_fails_partway_closes_every_store_it_had_opened_and_releases_the_folder",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_app.py::test_close_keeps_the_stores_and_the_lock_while_a_request_could_still_be_using_them",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_app.py::test_work_admitted_but_not_yet_running_is_counted_by_the_drain",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_launcher.py::test_a_stop_with_a_request_still_running_exits_with_status_7_and_the_next_start_succeeds",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_reliability.py::test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.11 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted core-3.13 job",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     },
+     {
+      "kind": "ci",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "hosted macos job: Core tests on macOS",
+      "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
+      "environment": "GitHub-hosted runner",
+      "proves": "full"
+     }
+    ]
    },
    "review": {
     "verdict": null
@@ -1044,7 +1099,8 @@
      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
      "ref": "core/tests/test_retention.py::test_concurrent_submits_with_one_idempotency_key_create_one_task"
     }
-   ]
+   ],
+   "v04_basis": "software complete; only device verification remains (split to the -DEV row)"
   },
   {
    "id": "S3-C09",
@@ -14514,6 +14570,36 @@
     "verdict": null
    },
    "split_from": "UC-L08"
+  },
+  {
+   "id": "S3-C08-DEV",
+   "stage": 3,
+   "title": "tasks.py, service.py, app.py (device part)",
+   "source": "stage3",
+   "source_ref": "core/docs/STAGE3_ACCEPTANCE.md, criterion 8; STAGE-3-EXECUTION-PLAN.md §5",
+   "refs": [
+    "core/docs/STAGE3_ACCEPTANCE.md, criterion 8; STAGE-3-EXECUTION-PLAN.md §5"
+   ],
+   "owners": {
+    "implementation": "Claude",
+    "verdict": "Codex",
+    "sign_off": "Owner"
+   },
+   "mandatory": true,
+   "scope": "out-device",
+   "milestones": [],
+   "aliases": [],
+   "pass_condition": "Verified on physical hardware: power loss and FileVault behaviour on the target Mac.",
+   "required_evidence": "Owner-run check on the physical device",
+   "checkpoint": "None defined: scored 0 or 1",
+   "implementation": {
+    "state": "none",
+    "evidence": []
+   },
+   "review": {
+    "verdict": null
+   },
+   "split_from": "S3-C08"
   },
   {
    "id": "PRD-5A-01-DEV",

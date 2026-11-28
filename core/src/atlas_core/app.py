@@ -173,20 +173,40 @@ class Core:
         try:
             self._build(c)
         except BaseException:
+            self._close_partial(c)  # ATLAS-CORE-084: every store opened before the failure is closed, then the lock is released
             self._release_lock()
             raise
+
+    def _close_partial(self, c: CoreConfig) -> None:
+        """After a failed construction: close what was opened, newest first, each on its own (one failing close never keeps another open)."""
+        opened = [*getattr(self, "indexes", {}).values()]
+        opened += [getattr(self, name, None) for name in ("edits", "tasks", "designation")]
+        for store in [s for s in opened if s is not None]:
+            try:
+                store.close()
+            except Exception:  # noqa: BLE001,S112 - best effort: the construction already failed and is re-raised
+                continue
+        for closer in c.closers:
+            try:
+                closer()
+            except Exception:  # noqa: BLE001,S112
+                continue
 
     def _build_indexes(self, c: CoreConfig) -> dict[str, Any]:
         """One encrypted, guarded index per configured source type: documents, Mail, and the Stage 5 domains (the same exact, purgeable index as Mail, one store and one key per type)."""
         indexes: dict[str, Any] = {}
-        if c.documents is not None:
-            name, root = c.documents
-            indexes[name] = DocumentIndex(c.data_dir / "documents.db", c.documents_key, root, name, access=self.access)
-        if c.mailbox is not None:
-            name, adapter = c.mailbox
-            indexes[name] = MailIndex(c.data_dir / "mail.db", c.mail_key, adapter, name, access=self.access)
-        for name, (source, key) in c.records.items():
-            indexes[name] = MailIndex(c.data_dir / f"{name}.db", key, source, name, access=self.access)
+        try:
+            if c.documents is not None:
+                name, root = c.documents
+                indexes[name] = DocumentIndex(c.data_dir / "documents.db", c.documents_key, root, name, access=self.access)
+            if c.mailbox is not None:
+                name, adapter = c.mailbox
+                indexes[name] = MailIndex(c.data_dir / "mail.db", c.mail_key, adapter, name, access=self.access)
+            for name, (source, key) in c.records.items():
+                indexes[name] = MailIndex(c.data_dir / f"{name}.db", key, source, name, access=self.access)
+        except BaseException:
+            self.indexes = indexes  # the ones already open are closed by the constructor's failure path
+            raise
         return indexes
 
     def _build(self, c: CoreConfig) -> None:

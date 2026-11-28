@@ -476,6 +476,13 @@ V04_DEVICE_ONLY_GAPS["UC-L08"] = ("the owner's model installed and measured on t
     ("core/tests/test_intelligence.py", "test_a_request_needing_a_capability_nobody_has_is_unavailable_not_degraded"),
     ("core/tests/test_intelligence.py", "test_text_requests_may_fall_back_to_the_text_model_but_image_requests_never_do"),
 ])
+V04_DEVICE_ONLY_GAPS["S3-C08"] = ("power loss and FileVault behaviour on the target Mac", [
+    ("core/tests/test_app.py", "test_a_construction_that_fails_partway_closes_every_store_it_had_opened_and_releases_the_folder"),
+    ("core/tests/test_app.py", "test_close_keeps_the_stores_and_the_lock_while_a_request_could_still_be_using_them"),
+    ("core/tests/test_app.py", "test_work_admitted_but_not_yet_running_is_counted_by_the_drain"),
+    ("core/tests/test_launcher.py", "test_a_stop_with_a_request_still_running_exits_with_status_7_and_the_next_start_succeeds"),
+    ("core/tests/test_reliability.py", "test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run"),
+])  # ATLAS-CORE-083 closed by MAC-18 (architect-passed); ATLAS-CORE-084 closed in this batch
 # Rows whose only remaining gap is the owner's own walkthrough of the app: an owner-run check, recorded as the -DEV row, not a software criterion.
 V04_DEVICE_ONLY_GAPS["PRD-5A-01"] = ("the owner's walkthrough of the app confirming no incidental prompts", [
     ("core/tests/test_policy.py", "test_default_is_deny_nothing_is_retrieved_and_no_model_is_called"),

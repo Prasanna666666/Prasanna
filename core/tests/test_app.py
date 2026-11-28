@@ -312,3 +312,40 @@ def test_the_first_documents_and_mail_workflow_works_end_to_end_with_exact_evide
         assert all(c["quote"] in q for c, q in zip(answer["citations"], quoted, strict=True))
     finally:
         w.close()
+
+
+def test_a_construction_that_fails_partway_closes_every_store_it_had_opened_and_releases_the_folder(tmp_path, monkeypatch):
+    """ATLAS-CORE-084: the task store fails to open after the designation store and the indexes are open. Every one of them is closed (even if
+    one close fails), the error is the original one, the data folder lock is released, and the next construction succeeds."""
+    import atlas_core.app as app_module
+    from atlas_core.designation import DesignationStore
+    from atlas_core.documents import DocumentIndex
+
+    world = World(tmp_path, mail=True)
+    closed: list[str] = []
+    real_doc_close, real_des_close = DocumentIndex.close, DesignationStore.close
+
+    def doc_close(self):
+        closed.append("documents")
+        real_doc_close(self)
+
+    def des_close(self):
+        closed.append("designation")
+        real_des_close(self)
+        raise OSError("a close that fails never keeps another store open")
+
+    def broken_tasks(*_args, **_kwargs):
+        raise OSError("task store cannot open")
+
+    monkeypatch.setattr(DocumentIndex, "close", doc_close)
+    monkeypatch.setattr(DesignationStore, "close", des_close)
+    monkeypatch.setattr(app_module, "TaskStore", broken_tasks)
+    try:
+        with pytest.raises(OSError, match="task store cannot open"):
+            world.build()
+        assert sorted(closed) == ["designation", "documents"]
+        monkeypatch.undo()
+        core = world.build()  # the lock was released and nothing is left locked: a clean start
+        core.close()
+    finally:
+        world.close()
