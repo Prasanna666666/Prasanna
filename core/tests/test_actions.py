@@ -397,3 +397,87 @@ def test_approval_replay_refuses_a_record_that_moves_an_approval_backwards_or_ch
     (tmp_path / "approvals.jsonl").write_text(json.dumps(row) + "\n" + json.dumps({**row, **change}) + "\n")
     with pytest.raises(ValueError, match="approval_state_corrupt"):
         ApprovalFile(tmp_path / "approvals.jsonl").load()
+
+
+class ConnectionProxy:
+    """Wraps a store's connection to inject a fault just before one statement runs (the real connection's methods are read-only)."""
+
+    def __init__(self, conn, before):
+        self._conn, self._before = conn, before
+
+    def execute(self, sql, *args):
+        self._before(sql)
+        return self._conn.execute(sql, *args)
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
+
+_KILLED_UNDO = """
+import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[3])
+from conftest import KEY
+from test_actions import Outbox
+from atlas_core.actions import ActionGateway
+from atlas_core.record_actions import register_record_actions
+from atlas_core.recordstore import RecordStore
+store = RecordStore(Path(sys.argv[1]), KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+from test_actions import ConnectionProxy
+store._conn = ConnectionProxy(store._conn, lambda sql: os._exit(9) if sql.startswith("UPDATE receipts SET undone=1") else None)  # killed inside the undo transaction
+gateway = ActionGateway(receipts=store)
+register_record_actions(gateway, store, Outbox(), lambda _rid: None)
+gateway.undo(sys.argv[2])
+"""
+
+
+def test_an_undo_killed_between_its_effect_and_its_receipt_mark_leaves_neither_and_is_done_exactly_once_after_restart(tmp_path):
+    """UC-L14 (review 6097009203): the undo's effect and the receipt's undone mark are one transaction. The process is killed (os._exit, no
+    handler runs) after the reversal was written and before commit: after the restart the record is unchanged and the receipt still eligible,
+    so the owner's undo runs once, and a second undo is refused. Neither a lost undo nor a double undo is possible."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    store_path = tmp_path / "edits.db"
+    store = RecordStore(store_path, KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+    gateway = ActionGateway(receipts=store)
+    register_record_actions(gateway, store, Outbox(), lambda _rid: None)
+    created = own(gateway, "calendar.create", event(), "c1")
+    store.close()
+    done = subprocess.run(
+        [sys.executable, "-c", _KILLED_UNDO, str(store_path), created.action_id, str(Path(__file__).parent)], check=False, capture_output=True
+    )
+    assert done.returncode == 9, done.stderr
+    store = RecordStore(store_path, KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+    try:
+        assert not store.get("e1", include_deleted=True).deleted and store.receipt(created.action_id)[3] is False  # nothing of the undo committed
+        gateway = ActionGateway(receipts=store)
+        register_record_actions(gateway, store, Outbox(), lambda _rid: None)
+        assert gateway.undo(created.action_id).code == "undone" and store.get("e1", include_deleted=True).deleted
+        assert gateway.undo(created.action_id).code == "already_undone"
+    finally:
+        store.close()
+
+
+def test_an_undo_that_fails_inside_its_transaction_changes_nothing_and_can_be_retried(tmp_path, monkeypatch):
+    """The same boundary without a kill: a failure inside the undo transaction rolls the reversal back with the receipt's mark, the owner sees
+    `undo_failed`, and a retry succeeds once."""
+    store = RecordStore(tmp_path / "edits.db", KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+    gateway = ActionGateway(receipts=store)
+    register_record_actions(gateway, store, Outbox(), lambda _rid: None)
+    created = own(gateway, "calendar.create", event(), "c1")
+    real = store._conn
+
+    def fail_at_marker(sql):
+        if sql.startswith("UPDATE receipts SET undone=1"):
+            raise OSError("disk full at the marker")
+
+    store._conn = ConnectionProxy(real, fail_at_marker)
+    try:
+        assert gateway.undo(created.action_id).code == "undo_failed"
+        store._conn = real
+        assert not store.get("e1", include_deleted=True).deleted and store.receipt(created.action_id)[3] is False
+        assert gateway.undo(created.action_id).code == "undone" and gateway.undo(created.action_id).code == "already_undone"
+    finally:
+        store.close()

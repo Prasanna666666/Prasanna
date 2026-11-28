@@ -30,6 +30,9 @@ def register_record_actions(gateway: ActionGateway, store: RecordStore, outbox: 
     def undo_change(_payload: dict[str, Any], result: dict[str, Any]) -> None:
         store.undo(result["seq"])
 
+    def undo_change_atomically(_payload: dict[str, Any], result: dict[str, Any], action_id: str) -> None:
+        store.undo(result["seq"], receipt=action_id)  # the reversal and the receipt's undone mark are one transaction
+
     def edit(p: dict[str, Any]) -> dict[str, Any]:
         return {"id": p["id"], "seq": store.update(p["id"], p["expected_version"], title=p.get("title"), date=p.get("date"), fields=p.get("fields"))}
 
@@ -43,9 +46,11 @@ def register_record_actions(gateway: ActionGateway, store: RecordStore, outbox: 
 
     local = frozenset({"local_reversible"})
     for domain in ("calendar", "contacts", "notes", "travel"):
-        gateway.register(ActionSpec(f"{domain}.create", local, create(domain), undo_change))
-        gateway.register(ActionSpec(f"{domain}.edit", local, edit, undo_change))  # moving an event is an edit of its date and fields
-        gateway.register(ActionSpec(f"{domain}.archive", local, soft_delete, undo_change))
+        gateway.register(ActionSpec(f"{domain}.create", local, create(domain), undo_change, atomic_undo=undo_change_atomically))
+        gateway.register(
+            ActionSpec(f"{domain}.edit", local, edit, undo_change, atomic_undo=undo_change_atomically)
+        )  # moving an event is an edit of its date and fields
+        gateway.register(ActionSpec(f"{domain}.archive", local, soft_delete, undo_change, atomic_undo=undo_change_atomically))
         if purge is not None:
             gateway.register(ActionSpec(f"{domain}.erase", PURGE_EFFECTS, erase))
     if outbox is not None:

@@ -56,6 +56,8 @@ class ActionSpec:
     handler: Handler
     undo: Undo | None = None
     connector: str | None = None
+    # an undo that also marks its durable receipt undone in the same transaction as the effect (UC-L14); used whenever receipts are kept
+    atomic_undo: Callable[[dict[str, Any], dict[str, Any], str], None] | None = None
 
     def __post_init__(self) -> None:
         if not self.effects or not self.effects <= EFFECTS:
@@ -106,6 +108,15 @@ class AuditEntry:
 
 def _canonical(payload: dict[str, Any]) -> bytes:
     return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str).encode()
+
+
+def anchored(history: list[AuditEntry], anchor: tuple[int, str] | None) -> bool:
+    """Whether a loaded audit history still holds the entry its external anchor names (same sequence, same digest). An anchor beyond the history
+    means the file was deleted or truncated; a history one entry past the anchor is an append whose anchor update was interrupted, and is fine."""
+    if anchor is None:
+        return True  # no anchor yet: a first run, or an installation from before the anchor existed (anchored from its next entry on)
+    seq, digest = anchor
+    return 0 < seq <= len(history) and history[seq - 1].seq == seq and history[seq - 1].digest == digest
 
 
 def binding_of(name: str, payload: dict[str, Any]) -> str:
@@ -274,7 +285,9 @@ class ActionGateway:
         idempotency: IdempotencyFile | None = None,
         receipts: ReceiptBook | None = None,
         approvals: ApprovalFile | None = None,
+        anchor: Callable[[int, str], None] | None = None,
     ) -> None:
+        self._anchor = anchor
         self._clock, self._lock, self._audit_file, self._idem_file, self._receipts = clock, threading.RLock(), audit_file, idempotency, receipts
         self._specs: dict[str, ActionSpec] = {}
         self._approval_file = approvals
@@ -312,6 +325,8 @@ class ActionGateway:
         if self._audit_file is not None:
             self._audit_file.append(entry)  # on disk before the outcome is returned
         self.audit.append(entry)
+        if self._anchor is not None:
+            self._anchor(entry.seq, entry.digest)  # outside the audit file: a later deletion or truncation of the file is detected
 
     def verify_audit(self) -> bool:
         return _chain_ok(self.audit)
@@ -418,13 +433,18 @@ class ActionGateway:
             if done.spec.undo is None:
                 return Outcome("refused", "not_reversible")
             digest = hashlib.sha256(_canonical(done.payload)).hexdigest()
+            atomic = done.spec.atomic_undo is not None and self._receipts is not None
             try:
-                done.spec.undo(done.payload, done.result)
+                if atomic:
+                    assert done.spec.atomic_undo is not None
+                    done.spec.atomic_undo(done.payload, done.result, action_id)  # the effect and the receipt's mark commit together
+                else:
+                    done.spec.undo(done.payload, done.result)
             except Exception:  # noqa: BLE001
                 self._log(done.spec.name, "failed", "undo_failed", digest, None)
                 return Outcome("failed", "undo_failed")
             done.undone = True
-            if self._receipts is not None:
+            if self._receipts is not None and not atomic:
                 self._receipts.mark_undone(action_id)
             self._log(done.spec.name, "done", "undone", digest, None)
             return Outcome("done", "undone", action_id=action_id)

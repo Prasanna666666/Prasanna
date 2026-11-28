@@ -31,6 +31,7 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS records (record_id TEXT PRIMARY KEY, domain TEXT NOT NULL, version INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, date TEXT NOT NULL, title TEXT NOT NULL, fields TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS history (seq INTEGER PRIMARY KEY AUTOINCREMENT, record_id TEXT NOT NULL, version INTEGER NOT NULL, op TEXT NOT NULL, before TEXT, after TEXT, at TEXT NOT NULL, origin TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
 CREATE INDEX IF NOT EXISTS history_record ON history(record_id);
+CREATE TABLE IF NOT EXISTS audit_anchor (one INTEGER PRIMARY KEY CHECK (one = 1), seq INTEGER NOT NULL, digest TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS receipts (action_id TEXT PRIMARY KEY, name TEXT NOT NULL, payload TEXT NOT NULL, result TEXT NOT NULL, undone INTEGER NOT NULL DEFAULT 0);
 """
 
@@ -93,6 +94,20 @@ class RecordStore:
             row = self._conn.execute("SELECT name, payload, result, undone FROM receipts WHERE action_id=?", (action_id,)).fetchone()
         return None if row is None else (str(row["name"]), json.loads(row["payload"]), json.loads(row["result"]), bool(row["undone"]))
 
+    # -- the audit anchor (ATLAS-ACT-019): the last audit entry's sequence and digest, kept OUTSIDE the audit file, so a deleted or truncated
+    # audit is told apart from a first run ----------------------------------------------------------------------------------------------------
+    def set_audit_anchor(self, seq: int, digest: str) -> None:
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO audit_anchor (one, seq, digest) VALUES (1,?,?) ON CONFLICT(one) DO UPDATE SET seq=excluded.seq, digest=excluded.digest",
+                (seq, digest),
+            )
+
+    def audit_anchor(self) -> tuple[int, str] | None:
+        with self._lock:
+            row = self._conn.execute("SELECT seq, digest FROM audit_anchor WHERE one=1").fetchone()
+        return None if row is None else (int(row["seq"]), str(row["digest"]))
+
     def mark_undone(self, action_id: str) -> None:
         with self._lock:
             self._conn.execute("UPDATE receipts SET undone=1 WHERE action_id=?", (action_id,))
@@ -123,7 +138,8 @@ class RecordStore:
         if record.domain not in self._domains:
             raise StoreError("wrong_domain")
 
-    def _write(self, op: str, before: str | None, after: Record, deleted: bool, version: int, origin: str) -> int:
+    def _write(self, op: str, before: str | None, after: Record, deleted: bool, version: int, origin: str, also: Callable[[int], None] | None = None) -> int:
+        """`also(new_seq)` runs inside the same transaction, after the history row exists: all of it commits, or none of it."""
         at = self._clock().isoformat()
         self._conn.execute("BEGIN IMMEDIATE")
         try:
@@ -136,6 +152,8 @@ class RecordStore:
                 "INSERT INTO history (record_id, version, op, before, after, at, origin) VALUES (?,?,?,?,?,?,?)",
                 (after.record_id, version, op, before, _dump(after, deleted), at, origin),
             )
+            if also is not None:
+                also(int(cursor.lastrowid or 0))
             self._conn.execute("COMMIT")
             return int(cursor.lastrowid or 0)
         except BaseException:
@@ -179,8 +197,9 @@ class RecordStore:
                 raise StoreError("conflict")
             return self._write("delete", _dump(current.record), current.record, True, current.version + 1, origin)
 
-    def undo(self, seq: int, origin: str = "owner") -> int:
-        """Reverse exactly the change `seq`, if it is the record's latest change and not already undone."""
+    def undo(self, seq: int, origin: str = "owner", receipt: str | None = None) -> int:
+        """Reverse exactly the change `seq`, if it is the record's latest change and not already undone. The reversal, both history marks and, with
+        `receipt`, that action receipt's undone mark are ONE transaction (UC-L14): an interruption leaves all of it or none of it."""
         with self._lock:
             row = self._conn.execute("SELECT * FROM history WHERE seq=?", (seq,)).fetchone()
             if row is None or row["undone"]:
@@ -194,9 +213,13 @@ class RecordStore:
             else:
                 after, deleted = _load(row["before"])
                 op = "undo_" + row["op"]
-            new_seq = self._write(op, row["after"], after, deleted, current.version + 1, origin)
-            self._conn.execute("UPDATE history SET undone=1 WHERE seq IN (?,?)", (seq, new_seq))
-            return new_seq
+
+            def marks(new_seq: int) -> None:
+                self._conn.execute("UPDATE history SET undone=1 WHERE seq IN (?,?)", (seq, new_seq))
+                if receipt is not None:
+                    self._conn.execute("UPDATE receipts SET undone=1 WHERE action_id=?", (receipt,))
+
+            return self._write(op, row["after"], after, deleted, current.version + 1, origin, also=marks)
 
 
 class StoredRecords:

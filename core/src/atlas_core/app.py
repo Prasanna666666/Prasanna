@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .access import OSPermissionProvider, SourceAccess
-from .actions import ActionGateway, ApprovalFile, AuditFile, IdempotencyFile
+from .actions import ActionGateway, ApprovalFile, AuditFile, IdempotencyFile, anchored
 from .api import CoreApi
 from .backup import drill_passed
 from .connectors import Adapter, ConnectorHub, SecretStore
@@ -299,6 +299,8 @@ class Core:
         self.edits = RecordStore(c.data_dir / "edits.db", c.edits_key, frozenset({"calendar", "contacts", "notes", "travel"}), c.clock)
         audit = AuditFile(c.data_dir / "actions-audit.jsonl")
         history = audit.load()
+        if history is not None and not anchored(history, self.edits.audit_anchor()):
+            history = None  # the anchor names an entry the file no longer holds: the audit was deleted or truncated
         if history is None:
             c.log.emit(
                 "api.request", "service", "actions-audit", error_code="internal_error"
@@ -314,6 +316,7 @@ class Core:
                 IdempotencyFile(c.data_dir / "actions-idempotency.jsonl"),
                 receipts=self.edits,
                 approvals=ApprovalFile(c.data_dir / "actions-approvals.jsonl"),
+                anchor=self.edits.set_audit_anchor,
             )
         except ValueError:  # approval state that does not replay cleanly: no actions are served (as for a damaged audit)
             c.log.emit("api.request", "service", "actions-approvals", error_code="internal_error")
