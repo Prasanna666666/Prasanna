@@ -21,7 +21,7 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 19.5%** (42.5/218) · **Review completion 14.7%** (32/218) · register v0.3 (the file as committed) scoring software revision `910df6a` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); v0.4 is proposed separately in acceptance_register_v04_proposed.json)
+**Implementation readiness 19.5%** (42.5/218) · **Review completion 14.7%** (32/218) · register v0.3 (the file as committed) scoring software revision `c116bd5` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); the v0.4 proposal was withdrawn by the owner (28 Nov) and this is the only measure)
 
 Mandatory criteria not yet passing: **190** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
 
@@ -38,7 +38,7 @@ Record structure validated by the calculator: 218 of 218 scored criteria carry n
 
 First Mac milestone view (criteria tagged first-mac): implementation 13.5/19 (71.1%), review 15/19 (78.9%).
 
-Supporting inventory (git-tracked): 288 source files, 48,027 lines, 3048 functions; 212 test files, 1971 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 15 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 288 source files, 48,040 lines, 3049 functions; 212 test files, 1971 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 16 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->
@@ -119,3 +119,4 @@ file-level review and is not counted as line or function coverage.
 | 9 | `6c35e620517abfed7d45e42b2fd3b6c52afa50a3` | 19.0% (41.5/218); architect reports 41/218 | 13.3% (29/218) | Verdicts: MAC-17 pass, UC-L19 pass; MAC-08 and MAC-06 fail; UC-L22, MAC-07, UC-009 and MAC-20 pending; the Core checkpoints of S6-X07, S7-X01, S7-X05, S8-X01 and S8-X03 met. Mirrored with the two supplementary audits at d528055 (comments 7235875772 and 7235938220: 13 passes). The calculator's 41.5 is the sum of the review's stated increments (37.5 + 0.5 + 1 + 2.5); the 0.5 difference is asked of the architect. v0.4 remains proposed. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096694534) |
 | 10 | `b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1` | 19.3% (42/218) | 14.7% (32/218) | Verdicts: S3-C08 fail with its Core checkpoint met; UC-L14 and UC-L26 fail; MAC-08 and MAC-06 fail; UC-009, UC-L22, MAC-07, UC-049 and MAC-20 pending. The architect confirmed 41.5/218 at 6c35e62 (its 41 was 0.5 short). Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203) |
 | 11 | `910df6ae917929537c1511bf77c1bb36123480d2` | 19.5% (42.5/218) | 14.7% (32/218) | Verdicts: S3-C08 pass (full); UC-L26 fail (one final authorization boundary across sources); MAC-08 and MAC-06 fail. ATLAS-ACT-019: torn tail closed, strict replay open. v0.4 aligned with failed and pending verdicts. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097249161) |
+| 12 | `c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55` | 19.5% (42.5/218) | 14.7% (32/218) | Verdicts: UC-L26 fail (final permission checks sequential); UC-L14 fail for the full criterion, local record undo passes (connector compensation and receipt separate); UC-049 and UC-009 pending; MAC-08 and MAC-06 fail. ATLAS-ACT-019: approval replay closed; intent-journal torn tail and bounded audit-anchor recovery open. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098305702) |

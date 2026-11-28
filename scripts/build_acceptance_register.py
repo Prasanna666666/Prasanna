@@ -24,11 +24,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
 OUT_V04 = ROOT / "core" / "docs" / "acceptance_register_v04_proposed.json"
-CI_REVISION = "910df6ae917929537c1511bf77c1bb36123480d2"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46132313240"
+CI_REVISION = "c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46146928203"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140939960141", "core-3.13": f"{CI_RUN}/job/140939960161", "kit": f"{CI_RUN}/job/140939960147",
-    "macos": f"{CI_RUN}/job/140939960037", "app": f"{CI_RUN}/job/140939960089", "ios": f"{CI_RUN}/job/140939960079",
+    "core-3.11": f"{CI_RUN}/job/140984915682", "core-3.13": f"{CI_RUN}/job/140984915780", "kit": f"{CI_RUN}/job/140984915759",
+    "macos": f"{CI_RUN}/job/140984915774", "app": f"{CI_RUN}/job/140984915773", "ios": f"{CI_RUN}/job/140984915850",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
@@ -42,6 +42,7 @@ AUDIT2 = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasan
 V09_REVIEW = ("6c35e620517abfed7d45e42b2fd3b6c52afa50a3", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096694534", "6096694534")
 V10_REVIEW = ("b2ca5b30c5780c73fe8ebc0a1dc8048078176ef1", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097009203", "6097009203")
 V11_REVIEW = ("910df6ae917929537c1511bf77c1bb36123480d2", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6097249161", "6097249161")
+V12_REVIEW = ("c116bd59dd81d6ce48681ce93d0c0bb57bcd3c55", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6098305702", "6098305702")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -483,6 +484,18 @@ def apply_verdicts_910df6a(criteria: list[dict]) -> list[dict]:
     by["UC-L26"]["review"] = _verdict(V11_REVIEW, "fail", note="a source admitted early and withdrawn while a later source is read still contributes; build the response at one final authorization boundary")
     by["MAC-08"]["review"] = _verdict(V11_REVIEW, "fail", note="exact-head mac-ui still fails")
     by["MAC-06"]["review"] = _verdict(V11_REVIEW, "fail", note="the required mac-ui job failed")
+    return apply_verdicts_c116bd5(criteria)
+
+
+def apply_verdicts_c116bd5(criteria: list[dict]) -> list[dict]:
+    """The architect's review of c116bd5 (review 6098305702)."""
+    by = {c["id"]: c for c in criteria}
+    by["UC-L26"]["review"] = _verdict(V12_REVIEW, "fail", note="the final permission checks are sequential: a stable authorization snapshot or invalidation check across final assembly, and a signed regression withdrawing during a later permission check")
+    by["UC-L14"]["review"] = _verdict(V12_REVIEW, "fail", note="local record undo passes; reversible connector compensation and the receipt update are separate steps: recover an interrupted compensation or refuse retry when its outcome cannot be confirmed")
+    by["UC-049"]["review"] = _verdict(V12_REVIEW, "pending", note="assert that the exact hostile invite was retrieved and supplied to the model on the real processing path, and observe the production handoff to the gateway")
+    by["UC-009"]["review"] = _verdict(V12_REVIEW, "pending", note="synchronise the pass condition with the two-sided Stop behaviour and add hosted evidence that the production AppModel shows the same outcome with no misleading error")
+    by["MAC-08"]["review"] = _verdict(V12_REVIEW, "fail", note="exact-head mac-ui still fails")
+    by["MAC-06"]["review"] = _verdict(V12_REVIEW, "fail", note="the required mac-ui job failed")
     return criteria
 
 
@@ -690,7 +703,7 @@ def main() -> int:
             c["id"] = f"{c['id']}.{seen[c['id']]}"
     register = {
         "version": "0.3",
-        "status": "agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); v0.4 is proposed separately in acceptance_register_v04_proposed.json",
+        "status": "agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976); the v0.4 proposal was withdrawn by the owner (28 Nov) and this is the only measure",
         "scored_revision": CI_REVISION,
         "rules": "PR #8 comment 7226542434 (scoring) and 7226926847 (schedule protocol)",
         "scoring": {"full": 1.0, "checkpoint": 0.5, "none": 0.0},
