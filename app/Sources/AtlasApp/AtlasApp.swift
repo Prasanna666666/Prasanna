@@ -234,6 +234,7 @@ final class AppModel: ObservableObject {
     private var gate = SubmissionGate()
     private var tracker = PhaseTracker()
     private let stopSignal = StopSignal()  // the owner's Stop for the running question (QuestionRunner applies it at any timing)
+    private let generation = ResultGeneration()  // MAC-20: results that come back after a withdrawal are discarded
     private var client: CoreClient?
     private let support = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support/Atlas")
     private var socket: String { support.appendingPathComponent("run/core.sock").path }
@@ -569,9 +570,11 @@ final class AppModel: ObservableObject {
         library = .loading
         libraryFilter = nil
         let sources = scope
+        let token = generation.token()
         do {
             let response = try await Task.detached { try client.librarySearch(text, scope: sources) }.value
-            library = LibraryOutcome.from(response)
+            guard generation.isCurrent(token) else { return }  // access changed while it ran: never shown
+            library = Withdrawal.library(LibraryOutcome.from(response), withdrawn: Set(sources).subtracting(scope))
         } catch { library = .failed((error as? AtlasError)?.message ?? Catalogue.shared.error("internal_error")) }
     }
 
@@ -597,7 +600,12 @@ final class AppModel: ObservableObject {
             )
             switch outcome {
             case .answered(let phase, let raw):
-                turns[index].answer = AnswerView(raw)
+                let view = AnswerView(raw)
+                if Withdrawal.hides(view, withdrawn: Set(sources).subtracting(scope)) {
+                    turns[index].failure = Withdrawal.removedNotice  // a source it cites was turned off while it ran
+                } else {
+                    turns[index].answer = view
+                }
                 record(task: text, phase: turns[index].phase ?? phase, id: turns[index].taskID ?? turns[index].id.uuidString)
             case .ended(let phase):
                 turns[index].phase = phase
@@ -760,7 +768,21 @@ final class AppModel: ObservableObject {
 
     func withdraw(_ grantID: String) async {
         guard let client else { return }
-        do { _ = try await Task.detached { try client.withdraw(grantID: grantID) }.value; await refreshConsent(); await loadSettings() } catch { failure = (error as? AtlasError)?.message }
+        let before = Set(scope)
+        do {
+            _ = try await Task.detached { try client.withdraw(grantID: grantID) }.value
+            generation.advance()  // anything still running from before this change is not shown when it returns
+            await refreshConsent()
+            let withdrawn = before.subtracting(scope)  // the source types no longer allowed after this withdrawal
+            library = Withdrawal.library(library, withdrawn: withdrawn)
+            for index in turns.indices where turns[index].answer.map({ Withdrawal.hides($0, withdrawn: withdrawn) }) == true {
+                turns[index].answer = nil
+                turns[index].failure = Withdrawal.removedNotice
+                selectedCitation = nil
+                evidence = nil
+            }
+            await loadSettings()
+        } catch { failure = (error as? AtlasError)?.message }
     }
 }
 

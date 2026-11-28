@@ -5,6 +5,8 @@ public struct CitationView: Identifiable { public let id: Int; public let label:
 /// What a screen prints for an answer: plain words from the catalogue, never a code, path or raw JSON.
 public struct AnswerView {
     public let text: String, trust: String, modelLine: String, coverageLine: String?, notices: [String], notSearched: [String], citations: [CitationView]
+    /// The source types this answer cites (Core names): what a withdrawal of access must take it off the screen for (MAC-20).
+    public let sourceTypes: Set<String>
 
     public init(_ answer: [String: Any], catalogue c: Catalogue = .shared) {
         text = answer["answer"] as? String ?? ""
@@ -25,6 +27,7 @@ public struct AnswerView {
             let kind = c.sourceKinds[n["source_type"] as? String ?? ""] ?? (n["source_type"] as? String ?? "")
             return "\(kind): \(c.notSearchedReasons[n["reason_code"] as? String ?? ""] ?? "")".trimmingCharacters(in: .whitespaces)
         }
+        sourceTypes = Set((answer["citations"] as? [[String: Any]] ?? []).compactMap { ($0["evidence"] as? [String: Any])?["source_type"] as? String })
         citations = (answer["citations"] as? [[String: Any]] ?? []).enumerated().map { index, citation in
             let evidence = citation["evidence"] as? [String: Any] ?? [:]
             let locator = evidence["locator"] as? [String: Any] ?? [:]
