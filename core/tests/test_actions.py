@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
+
 import pytest
 from conftest import KEY
 
@@ -302,4 +304,42 @@ def test_an_action_done_before_a_restart_can_still_be_undone_after_it_exactly_on
     assert g.undo(created.action_id).code == "already_undone"
     bare = ActionGateway(receipts=store)  # nothing registered in this run: the receipt is not enough to run anything
     assert bare.undo(created.action_id).code == "unknown_action_id"
+    store.close()
+
+
+def test_an_approval_granted_before_a_restart_is_honoured_once_after_it_and_never_twice(tmp_path):
+    """ATLAS-ACT-019: approvals survive a restart without their payload (id, binding hash, category, expiry, granted, used). An approval granted
+    before a restart runs its exact action once after it; its `used` mark is on disk before the action runs, so another restart cannot use it
+    again; and an approval that expired meanwhile is refused."""
+    from atlas_core.actions import ApprovalFile
+
+    store_path, file = tmp_path / "edits.db", ApprovalFile(tmp_path / "approvals.jsonl")
+    clock = {"now": datetime(2026, 11, 28, 9, 0, tzinfo=UTC)}
+
+    def gateway():
+        store = RecordStore(store_path, KEY + "e", frozenset({"calendar", "contacts", "notes"}))
+        outbox = Outbox()
+        g = ActionGateway(lambda: clock["now"], approvals=file)
+        register_record_actions(g, store, outbox, lambda _rid: None)
+        return g, store, outbox
+
+    g, store, _ = gateway()
+    pending = own(g, "calendar.send_invitation", {"to": "x@example.invalid"}, "p1")
+    assert pending.status == "needs_approval" and g.grant(pending.approval_id, by_owner=True)
+    assert "x@example.invalid" not in (tmp_path / "approvals.jsonl").read_text()  # never the payload
+    store.close()
+    g, store, outbox = gateway()  # a restart
+    done = g.propose("calendar.send_invitation", {"to": "x@example.invalid"}, origin="owner_request", idempotency_key="s1", approval_id=pending.approval_id)
+    assert done.status == "done" and len(outbox.sent) == 1
+    store.close()
+    g, store, outbox = gateway()  # another restart: the approval was used
+    again = g.propose("calendar.send_invitation", {"to": "x@example.invalid"}, origin="owner_request", idempotency_key="s2", approval_id=pending.approval_id)
+    assert again.status == "needs_approval" and outbox.sent == []
+    late = own(g, "calendar.send_invitation", {"to": "y@example.invalid"}, "p2")
+    g.grant(late.approval_id, by_owner=True)
+    store.close()
+    clock["now"] += timedelta(hours=1)
+    g, store, outbox = gateway()  # restarted after it expired
+    expired = g.propose("calendar.send_invitation", {"to": "y@example.invalid"}, origin="owner_request", idempotency_key="s3", approval_id=late.approval_id)
+    assert expired.status == "needs_approval" and outbox.sent == []
     store.close()

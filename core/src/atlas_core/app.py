@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from .access import OSPermissionProvider, SourceAccess
-from .actions import ActionGateway, AuditFile, IdempotencyFile
+from .actions import ActionGateway, ApprovalFile, AuditFile, IdempotencyFile
 from .api import CoreApi
 from .backup import drill_passed
 from .connectors import Adapter, ConnectorHub, SecretStore
@@ -306,7 +306,14 @@ class Core:
             self.edits.close()
             self.edits = None
             return None
-        gateway = ActionGateway(c.clock, audit, history, IdempotencyFile(c.data_dir / "actions-idempotency.jsonl"), receipts=self.edits)
+        gateway = ActionGateway(
+            c.clock,
+            audit,
+            history,
+            IdempotencyFile(c.data_dir / "actions-idempotency.jsonl"),
+            receipts=self.edits,
+            approvals=ApprovalFile(c.data_dir / "actions-approvals.jsonl"),
+        )
         self.action_gateway = gateway
         register_record_actions(gateway, self.edits, c.outbox, c.erase)
         edits = self.edits

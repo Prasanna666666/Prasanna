@@ -184,6 +184,44 @@ class IdempotencyFile:
         return seen
 
 
+class ApprovalFile:
+    """Pending and granted approvals, kept across a restart (ATLAS-ACT-019): one JSON line per change with the approval id, the binding HASH, the
+    category, the expiry and whether it was granted or used. Never the payload. Owner-only (0600), appended and fsynced: `used` is on disk before
+    the approved action runs, so a restart can never let one approval run twice. The last line for an id wins; a torn last line is skipped."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+
+    def append(self, approval: Approval) -> None:
+        row = {
+            "id": approval.approval_id,
+            "binding": approval.binding,
+            "category": approval.category,
+            "expires_at": approval.expires_at.isoformat(),
+            "granted": approval.granted,
+            "used": approval.used,
+        }
+        fd = os.open(self._path, os.O_WRONLY | os.O_CREAT | os.O_APPEND | getattr(os, "O_NOFOLLOW", 0), 0o600)
+        with os.fdopen(fd, "a", encoding="utf-8") as handle:
+            handle.write(json.dumps(row, sort_keys=True) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
+
+    def load(self) -> dict[str, Approval]:
+        found: dict[str, Approval] = {}
+        if not self._path.exists():
+            return found
+        for line in self._path.read_text(encoding="utf-8").splitlines():
+            try:
+                row = json.loads(line)
+                found[row["id"]] = Approval(
+                    row["id"], row["binding"], int(row["category"]), datetime.fromisoformat(row["expires_at"]), bool(row["granted"]), bool(row["used"])
+                )
+            except (ValueError, KeyError, TypeError):
+                continue
+        return found
+
+
 class ReceiptBook(Protocol):
     """Durable, encrypted action receipts: what an executed action's undo needs (its name, payload and result), so undo works after a restart."""
 
@@ -200,10 +238,12 @@ class ActionGateway:
         history: list[AuditEntry] | None = None,
         idempotency: IdempotencyFile | None = None,
         receipts: ReceiptBook | None = None,
+        approvals: ApprovalFile | None = None,
     ) -> None:
         self._clock, self._lock, self._audit_file, self._idem_file, self._receipts = clock, threading.RLock(), audit_file, idempotency, receipts
         self._specs: dict[str, ActionSpec] = {}
-        self._approvals: dict[str, Approval] = {}
+        self._approval_file = approvals
+        self._approvals: dict[str, Approval] = approvals.load() if approvals is not None else {}
         self._done: dict[str, _Done] = {}
         self._idem: dict[tuple[str, str], tuple[str, Outcome]] = idempotency.load() if idempotency is not None else {}
         self._revoked: set[str] = set()
@@ -249,13 +289,19 @@ class ActionGateway:
             if not by_owner or approval is None or approval.used or approval.expires_at < self._clock():
                 return False
             approval.granted = True
+            self._keep(approval)
             return True
+
+    def _keep(self, approval: Approval) -> None:
+        if self._approval_file is not None:
+            self._approval_file.append(approval)
 
     def _consume(self, approval_id: str | None, binding: str, now: datetime) -> bool:
         approval = self._approvals.get(approval_id or "")
         if approval is None or not approval.granted or approval.used or approval.expires_at < now or approval.binding != binding:
             return False
         approval.used = True  # single-use: gone before the action runs
+        self._keep(approval)  # and on disk before it runs, so a restart cannot use it again
         return True
 
     # -- the one door -----------------------------------------------------------------------------------------------------------------------
@@ -278,6 +324,7 @@ class ActionGateway:
             if category is not None and not self._consume(approval_id, binding, now):
                 pending = Approval(secrets.token_hex(8), binding, category, now + APPROVAL_TTL)
                 self._approvals[pending.approval_id] = pending
+                self._keep(pending)
                 self.prompts += 1
                 self._log(name, "needs_approval", f"category_{category}", digest, pending.approval_id)
                 return Outcome("needs_approval", f"category_{category}", approval_id=pending.approval_id, category=category, exact_payload=dict(payload))
