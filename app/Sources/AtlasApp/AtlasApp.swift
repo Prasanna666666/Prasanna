@@ -771,12 +771,33 @@ final class AppModel: ObservableObject {
 /// UI-test diagnostics only (ATLAS_UI_TEST_PROBE): the onboarding paragraph the audit flags, alone in a plain window with the system's own
 /// background and text colour, so the audit result can be compared with the real first-run screen in the same hosted job.
 struct UITestProbeView: View {
+    /// ATLAS_UI_TEST_PROBE_VARIANT adds the real first-run screen's modifiers one at a time (architect review 6095905696: bisect the Dark-only
+    /// difference): plain, primary (.foregroundStyle(.primary)), fixed (.fixedSize), container (an accessibility container with a label and
+    /// identifier), theme (Atlas's background), all (every one of them).
+    private let variant = ProcessInfo.processInfo.environment["ATLAS_UI_TEST_PROBE_VARIANT"] ?? "plain"
+    @Environment(\.colorScheme) private var scheme
+
+    private func has(_ name: String) -> Bool { variant == name || variant == "all" }
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer.")
+        let text = Text("Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer.")
+        let styled = Group {
+            if has("primary") { text.foregroundStyle(.primary) } else { text }
         }
-        .padding(40)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        let sized = Group {
+            if has("fixed") { styled.fixedSize(horizontal: false, vertical: true) } else { styled }
+        }
+        let stack = VStack(alignment: .leading, spacing: 12) { sized }.padding(40).frame(maxWidth: .infinity, maxHeight: .infinity)
+        let contained = Group {
+            if has("container") {
+                stack.accessibilityElement(children: .contain).accessibilityLabel("Welcome to Atlas. Choose what Atlas may read.").accessibilityIdentifier("probe-container")
+            } else {
+                stack
+            }
+        }
+        return Group {
+            if has("theme") { contained.background(Theme(scheme).background) } else { contained }
+        }
     }
 }
 #endif

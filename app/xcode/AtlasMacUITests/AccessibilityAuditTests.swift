@@ -41,9 +41,16 @@ final class AccessibilityAuditTests: XCTestCase {
     /// MAC-08 diagnosis (architect review 6094872675, option iii): the same paragraph alone in a minimal window, in the same hosted job,
     /// with the window, element and app state recorded. It records the audit's findings without gating on them; the gate stays above.
     func testDiagnosticTheFlaggedParagraphInAMinimalWindow() throws {
-        for appearance in ["Light", "Dark"] {
+        for variant in ["plain", "primary", "fixed", "container", "theme", "all"] {
+            for appearance in ["Light", "Dark"] { try probe(variant: variant, appearance: appearance) }
+        }
+    }
+
+    private func probe(variant: String, appearance: String) throws {
+        do {
             let app = XCUIApplication()
             app.launchEnvironment["ATLAS_UI_TEST_PROBE"] = "1"
+            app.launchEnvironment["ATLAS_UI_TEST_PROBE_VARIANT"] = variant
             app.launchEnvironment["ATLAS_UI_TEST_APPEARANCE"] = appearance
             let stateFile = NSTemporaryDirectory() + "atlas-probe-state-\(appearance).txt"
             try? FileManager.default.removeItem(atPath: stateFile)
@@ -63,7 +70,8 @@ final class AccessibilityAuditTests: XCTestCase {
                 if issue.auditType == .contrast, let e = issue.element { print("PROBE CONTRAST PIXELS [\(appearance)]: \(Self.measuredContrast(e.screenshot().image))") }
                 return true  // diagnostic: recorded, never gating
             }
-            print("PROBE RESULT [\(appearance)]: \(flagged.isEmpty ? "no findings" : "\(flagged.count) finding(s)")")
+            let paragraphFlagged = flagged.contains { $0.contains("Contrast") }
+            print("PROBE RESULT [\(variant) \(appearance)]: paragraph \(paragraphFlagged ? "flagged" : "not flagged"); \(flagged.count) finding(s)")
             states(app, paragraph, "PROBE AFTER AUDIT [\(appearance)]", stateFile)
             app.terminate()
         }
