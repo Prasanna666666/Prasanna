@@ -39,14 +39,31 @@ MIN_FREE_BYTES = 64 * 1024 * 1024  # below this much free disk, indexing pauses 
 RESULT_LIMIT = 8
 FETCH_CHUNK = 500  # keys per query (well under SQLite's limit on bound parameters)
 MIN_WORD = 2  # words shorter than this are neither indexed nor searched
-SCHEMA_VERSION = 2  # 2: the postings table (term -> document) that keeps search from reading every document
+SCHEMA_VERSION = 3  # 2: the postings table (term -> document) that keeps search from reading every document; 3: unspaced scripts indexed as bigrams
 _BREAK = re.compile(r"\n[ \t\r]*\n")  # a blank line ends a paragraph
 
 
 # A word is letters and digits plus the combining marks that belong to a letter (Python's \w leaves these out, which cut Hindi, Thai, Hebrew-with-points and Arabic-with-vowels
 # words into fragments). The Devanagari danda (U+0964, U+0965) is punctuation, not a word character.
 def _tokens(text: str) -> list[str]:
-    return _WORD.findall(text.lower())
+    """Words, with every run of an unspaced script (Han, Hiragana, Katakana, Hangul) turned into its overlapping two-character pieces: those
+    scripts write a whole sentence without a space, so a word-character match would make it one unfindable token. A run of one character
+    stays one character (and, like any one-character word, is neither indexed nor searched)."""
+    out: list[str] = []
+    for word in _WORD.findall(text.lower()):
+        for part in _UNSPACED_SPLIT.split(word):
+            if not part:
+                continue
+            if _UNSPACED.fullmatch(part):
+                out.extend([part] if len(part) == 1 else [part[i : i + 2] for i in range(len(part) - 1)])
+            else:
+                out.append(part)
+    return out
+
+
+_UNSPACED_CHARS = "\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff\uac00-\ud7af\u31f0-\u31ff\uff66-\uff9f"
+_UNSPACED = re.compile(f"[{_UNSPACED_CHARS}]+")
+_UNSPACED_SPLIT = re.compile(f"([{_UNSPACED_CHARS}]+)")
 
 
 _WORD = re.compile(
@@ -252,7 +269,7 @@ def source_id_for(rel_path: str) -> str:
 
 
 def terms(query: str) -> list[str]:
-    return sorted({w for w in (m.group(0).lower() for m in _WORD.finditer(query)) if len(w) >= MIN_WORD})
+    return sorted({w for w in _tokens(query) if len(w) >= MIN_WORD})
 
 
 _SCHEMA = """

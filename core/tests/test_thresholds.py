@@ -32,7 +32,7 @@ def test_the_synthetic_quality_thresholds_hold(report):
     assert quality["by_category"]["cross_domain"]["passed"] >= 1.0 and ENFORCED["cross_domain_leakage_max"] == 0
     for script, minimum in ENFORCED["retrieval_recall_min_by_script"].items():
         assert report["retrieval_quality"]["by_script"][script]["recall"] >= minimum, script
-    assert [gap["id"] for gap in report["known_gaps"]] == ["ja-total"]  # the one recorded gap; a new one must be reported, not hidden
+    assert report["known_gaps"] == []  # set v2 has no recorded gap; a new one must be reported, not hidden
 
 
 @pytest.mark.criterion(12)

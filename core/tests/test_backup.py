@@ -203,12 +203,12 @@ def test_a_restore_goes_only_into_an_empty_place_and_a_failure_leaves_nothing_be
     fresh = tmp_path / "fresh"
     with pytest.raises(OSError):
         restore_backup(folder, PASS, fresh, provision_keys=boom)
-    assert not fresh.exists()  # created by the restore, removed by the restore
+    assert [p.name for p in fresh.iterdir()] == ["core.lock"]  # everything the restore made is removed except the folder lock, never unlinked
     existing_empty = tmp_path / "existing-empty"
     existing_empty.mkdir()
     with pytest.raises(OSError):
         restore_backup(folder, PASS, existing_empty, provision_keys=boom)
-    assert existing_empty.exists() and list(existing_empty.iterdir()) == []  # an existing empty folder is left as it was found
+    assert [p.name for p in existing_empty.iterdir()] == ["core.lock"]  # left empty: only the folder lock, which is not data
 
 
 def test_a_damaged_backup_is_never_restored_even_partly(world, tmp_path):
@@ -383,7 +383,7 @@ def test_a_backup_file_swapped_after_verification_is_caught_and_nothing_is_left_
     monkeypatch.setattr(backup_module, "verify_backup", swap_after_verify)
     with pytest.raises(BackupError) as refused:
         restore_backup(folder, PASS, target, provision_keys=provisioned.append)
-    assert refused.value.code == "hash_mismatch" and provisioned == [] and not target.exists()
+    assert refused.value.code == "hash_mismatch" and provisioned == [] and _empty(target)
 
 
 def test_a_restore_drill_marker_that_is_naive_future_or_malformed_does_not_pass_the_gate(tmp_path):
@@ -439,7 +439,35 @@ def test_a_restore_whose_key_staging_fails_leaves_no_files_and_the_working_keys_
     target = tmp_path / "restored"
     with pytest.raises(OSError):
         restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
-    assert items.live() == before and not target.exists()
+    assert items.live() == before and _empty(target)
+
+
+def _empty(folder: Path) -> bool:
+    """Nothing restored is left: the folder is absent or holds only its folder lock, which is never unlinked and is not data."""
+    return not folder.exists() or [p.name for p in folder.iterdir()] == ["core.lock"]
+
+
+def test_a_failed_restore_never_unlinks_the_folder_lock_it_holds(world, tmp_path):
+    """MAC-17 (review 6096381812): cleanup after a failure removes what the restore made but never the lock file's name while its
+    descriptor holds the inode, for a new and for an existing target. The lock file afterwards is the very file the restore held, so no
+    Core could have locked a different file at the same path during the cleanup, and the folder can be started or restored again."""
+    from atlas_core.app import acquire_data_dir
+
+    a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    for target in (tmp_path / "new-target", tmp_path / "existing-target"):
+        if target.name.startswith("existing"):
+            target.mkdir()
+        held = {}
+
+        def fail(bundle, target=target, held=held):
+            held["inode"] = (target / "core.lock").stat().st_ino
+            raise OSError("keychain refused")
+
+        with pytest.raises(OSError):
+            restore_backup(folder, PASS, target, provision_keys=fail)
+        assert _empty(target) and (target / "core.lock").stat().st_ino == held["inode"]
+        os.close(acquire_data_dir(target))  # free again, on the same file
 
 
 def _reopen(folder: Path, key: str, task_id: str) -> str:
@@ -471,7 +499,7 @@ def test_a_restore_into_a_second_folder_never_orphans_the_working_installation(w
 
     with pytest.raises(keyrestore.KeyRestoreError, match="another_installation"):
         restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
-    assert not target.exists() and not any(k.startswith("atlas-staged-") for k in items.store)
+    assert _empty(target) and not any(k.startswith("atlas-staged-") for k in items.store)
     assert keyrestore.recover(items) == "none" and _reopen(working, items.store["atlas-task-store"], task_id) == "completed"
 
     retired = working.with_name("core-retired")
@@ -559,7 +587,7 @@ def test_a_started_core_between_its_key_read_and_its_first_store_keeps_its_keys_
         before = dict(items.store)
         with pytest.raises(keyrestore.KeyRestoreError, match="another_installation"):
             restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
-        assert items.store == before and not target.exists()
+        assert items.store == before and _empty(target)
         other.mkdir()
         with pytest.raises(keyrestore.KeyRestoreError, match="not_owner"):
             keyrestore.open_keys(items, other, None, lambda: None)

@@ -145,7 +145,7 @@ def test_duplicate_ids_and_colliding_aliases_are_flagged(progress):
 
 def test_the_register_has_stable_unique_ids_complete_criteria_and_resolvable_test_evidence(progress):
     register = json.loads((ROOT / "core" / "docs" / "acceptance_register.json").read_text(encoding="utf-8"))
-    assert register["version"] == "0.3" and progress["register_errors"](register["criteria"]) == []
+    assert register["version"] == "0.4" and progress["register_errors"](register["criteria"]) == []
     for c in register["criteria"]:
         assert c["pass_condition"] and c["required_evidence"] and c["source_ref"] and c["scope"] in register["scopes"], c["id"]
         assert set(c["owners"]) == {"implementation", "verdict", "sign_off"}, c["id"]

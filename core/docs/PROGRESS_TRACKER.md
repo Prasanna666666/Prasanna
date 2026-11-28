@@ -21,27 +21,40 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 14.0%** (30.5/218) · **Review completion 6.9%** (15/218) · register v0.3 (the file as committed) scoring software revision `0949851` (agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976))
+**Implementation readiness 41.1%** (89.5/218) · **Review completion 6.9%** (15/218) · register v0.4 (the file as committed) scoring software revision `d528055` (PROPOSED, not agreed: v0.4 awaits Codex's decision (comment 7235843033); v0.3 is the agreed baseline (review 6093596586))
 
-Mandatory criteria not yet passing: **206** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 6 out-device.
+Mandatory criteria not yet passing: **199** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 16 out-device.
 
 Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (15).
 
 | Part of the register | Criteria | Implementation | Review |
 |---|---:|---:|---:|
 | first-mac | 16 | 11 (69%) | 13 (81%) |
-| prd | 61 | 0 (0%) | 0 (0%) |
+| prd | 61 | 28.5 (47%) | 0 (0%) |
 | roadmap | 3 | 2.5 (83%) | 1 (33%) |
 | stage3 | 20 | 6 (30%) | 1 (5%) |
-| stages4to8 | 34 | 11 (32%) | 0 (0%) |
-| use-case | 84 | 0 (0%) | 0 (0%) |
+| stages4to8 | 34 | 14 (41%) | 0 (0%) |
+| use-case | 84 | 27.5 (33%) | 0 (0%) |
 
-First Mac milestone view (criteria tagged first-mac): implementation 12/19 (63.2%), review 13/19 (68.4%).
+First Mac milestone view (criteria tagged first-mac): implementation 12.5/19 (65.8%), review 13/19 (68.4%).
 
-Supporting inventory (git-tracked): 286 source files, 47,308 lines, 3003 functions; 210 test files, 1931 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 11 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 286 source files, 47,437 lines, 3006 functions; 210 test files, 1933 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 12 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->
+
+## Register v0.4 (PROPOSED, not agreed)
+
+Proposed in comment 7235843033 at the owner's direction and built in this batch for Codex to review; **v0.3 stays the agreed baseline until
+Codex accepts v0.4 by SHA**, and every v0.4 figure above is provisional.
+- PRD and use-case rows marked PARTIAL get a checkpoint; 0.5 only from checkpoint-specific test evidence mapped in
+  `core/docs/v04_checkpoint_evidence.json` (exact tests that resolve, plus the hosted jobs that run them).
+- UC-033, UC-L16, PRD-4-07 and S3-C12 split into a scored software part and an excluded `-DEV` device part.
+- UC-041, UC-L09, PRD-5-05, PRD-5-01, PRD-3-06 and UC-L22 have complete software and only device or target-Mac verification left: the
+  software part is full from exact tests and the device part is a `-DEV` row. UC-L22's software gap (unspaced-script retrieval) is closed in
+  this batch (Han, Kana and Hangul indexed as overlapping pairs; evaluation set v2).
+- UC-L19 is full: its one recorded gap, ATLAS-CORE-092, was closed by MAC-11, MAC-12 and MAC-15, each architect-passed.
+- Stage 4-8 rows that name tests as `::test_name` or as a whole test file now resolve them (S6-X02, S6-X07, S7-X01, S7-X05, S8-X01, S8-X03).
 
 ## Register v0.3: scope, crosswalk and credit
 
@@ -50,7 +63,7 @@ Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 `scripts/build_acceptance_register.py` builds the register from the repository's own inventories. v0.2 answered the architect's v0.1 review
 ([7226745827](https://github.com/Prasanna666666/Prasanna/pull/8#issuecomment-7226745827)); v0.3 answers the v0.2 review
 ([6093128990](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990)). 232 entries; 218 are scored. Every entry's
-evidence cites the **scored software revision** `0949851` and its PR CI run 46105400530; the register itself is the file at the commit that holds it.
+evidence cites the **scored software revision** `d528055` and its PR CI run 46113892127; the register itself is the file at the commit that holds it.
 
 | Scope | Count | Scored | Entries |
 |---|---:|---|---|
@@ -109,3 +122,4 @@ file-level review and is not counted as line or function coverage.
 | 5 | `e23b04bff48c2c3d79976b50921f86d91a3c46ce` | 14.0% (30.5/218) | 6.9% (15/218) | No change. Verdicts: MAC-17 fail (single-target recovery accepted in design; ownership across data folders missing), MAC-08 fail (appearances verified; investigate the Disabled window state first, no exemption), MAC-06 fail. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094872675) |
 | 6 | `a3c7f7d009ff70d7feda917d5d4a3ea9dc030e71` | 14.0% (30.5/218) | 6.9% (15/218) | No change. Verdicts: MAC-17 fail (account-wide design accepted; serialize recovery with live restore, enforce ownership at startup, keep data on an unconfirmed commit point), MAC-08 fail (choose (a): make the window key first), MAC-06 fail. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095269004) |
 | 7 | `09498515beefed3e90feac0e201722822df4a6f5` | 14.0% (30.5/218) | 6.9% (15/218) | No change. Verdicts: MAC-17 fail (key layer fixed; startup store-open window and restore copy/activation interval remain), MAC-08 fail (window state controlled; choose (i)), MAC-06 fail. Arithmetic reproduced. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095905696) |
+| 8 | `d528055ec8756d8d55efe2f104cfe929c7bf8cb1` | 14.0% (30.5/218) under v0.3 | 6.9% (15/218) | Verdicts: MAC-17 fail (lock cleanup), MAC-08 fail (bisect Dark; second hosted configuration for Light), MAC-06 fail. Register v0.4 PROPOSED with this batch (comment 7235843033): checkpoints for partial PRD and use-case rows with mapped test evidence and four device splits; under v0.4 the calculator reports 38.1% (83/218), not agreed until Codex accepts it. [Review](https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096381812) |

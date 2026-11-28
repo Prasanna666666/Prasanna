@@ -581,3 +581,13 @@ def test_a_hindi_document_is_found_by_a_hindi_question(tmp_path):
     build(index)
     found = list(index.search("documents", "कुल देय राशि क्या है?"))
     assert found and "750.00" in found[0]["text"]
+
+
+def test_unspaced_scripts_are_indexed_as_overlapping_pairs_so_a_japanese_question_finds_its_document():
+    """UC-L22: Han, Kana and Hangul are written without spaces, so each run becomes its overlapping two-character pieces (a lone character is
+    too short to index, like any one-character word). Spaced scripts and numbers in the same text are untouched."""
+    from atlas_core.documents import _tokens, terms
+
+    assert _tokens("請求書 支払総額: 5800円 Invoice total") == ["請求", "求書", "支払", "払総", "総額", "5800", "円", "invoice", "total"]
+    assert {"支払", "総額"} <= set(terms("支払総額はいくらですか")) and "円" not in terms("5800円")
+    assert terms("합계 금액") == ["금액", "합계"] and terms("What is the total due?") == ["due", "is", "the", "total", "what"]

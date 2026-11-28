@@ -217,8 +217,10 @@ def test_a_missing_answer_and_a_hallucinated_figure_are_shown_as_not_confirmed_n
     hallucinated = client.run_question(*core.q("hallucinated-figure"))
     assert hallucinated["unproven_figures"] == [777.77] and CATALOGUE["limitations"]["figures_unproven"] in hallucinated["notices"]
     assert hallucinated["trust"] != CATALOGUE["verification"]["verified"]
-    rejected = client.run_question(*core.q("ja-total"))
-    assert rejected["citations"] == CATALOGUE["no_citations"]
+    missing = client.run_question(*core.q("missing-en"))
+    assert missing["citations"] == CATALOGUE["no_citations"]
+    japanese = client.run_question(*core.q("ja-total"))  # UC-L22: an unspaced-script question is answered with its citation
+    assert "5800" in japanese["text"] and japanese["citations"][0]["quote"] == "5800"
 
 
 def test_cancel_stops_a_queued_task_with_plain_words(tmp_path):

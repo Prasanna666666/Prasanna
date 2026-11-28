@@ -1,0 +1,942 @@
+{
+ "PRD-1-01": [
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testOnlyAvailableDestinationsAreListedAndTheOrderIsFixed"
+  ],
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testTheLayoutCollapsesTheInspectorBeforeTheSidebarAndEveryDestinationHasALabelAndASymbol"
+  ]
+ ],
+ "PRD-1-02": [
+  [
+   "core/tests/test_mlx_runtime.py",
+   "test_load_passes_only_the_verified_folder_with_remote_code_off_and_offline_env"
+  ],
+  [
+   "core/tests/test_egress.py",
+   "test_a_public_query_is_sent_and_returns_untrusted_data_with_provenance_and_a_redacted_audit"
+  ],
+  [
+   "core/tests/test_intelligence.py",
+   "test_default_uses_the_primary_and_the_answer_carries_its_identity"
+  ]
+ ],
+ "PRD-1-03": [
+  [
+   "core/tests/test_tasks.py",
+   "test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task"
+  ],
+  [
+   "core/tests/test_reliability.py",
+   "test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run"
+  ],
+  [
+   "core/tests/test_documents.py",
+   "test_indexing_is_newest_first_by_modification_time_and_progress_is_visible"
+  ]
+ ],
+ "PRD-1-04": [
+  [
+   "core/tests/test_evidence_answer.py",
+   "test_a_citation_resolves_to_the_exact_text_by_page_block_message_part_and_span"
+  ],
+  [
+   "core/tests/test_exact.py",
+   "test_arithmetic_is_exact_not_float"
+  ],
+  [
+   "core/tests/test_finance_calc.py",
+   "test_sums_are_exact_where_floats_are_not"
+  ]
+ ],
+ "PRD-1-05": [
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testTheConversationStateFollowsTheTaskAndKeepsAFailure"
+  ],
+  [
+   "app/Tests/AtlasKitTests/VoiceTests.swift",
+   "testDeniedPermissionAndMissingOnDeviceSpeechExplainThemselvesAndNeverStartListening"
+  ],
+  [
+   "app/Tests/AtlasKitTests/NotificationTests.swift",
+   "testNothingIsNotifiedUnlessTheOwnerTurnedNotificationsOn"
+  ],
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testApprovalNeedsADeliberateStepAndWorksOnceWhileValid"
+  ]
+ ],
+ "PRD-1-07": [
+  [
+   "core/tests/test_actions.py",
+   "test_the_action_matrix_only_the_four_categories_ever_need_approval"
+  ]
+ ],
+ "PRD-1-08": [
+  [
+   "core/tests/test_architecture.py",
+   "test_every_module_has_a_layer_and_imports_only_from_below_or_its_own_layer"
+  ],
+  [
+   "core/tests/test_contracts.py",
+   "test_every_type_of_the_contract_compiles"
+  ]
+ ],
+ "PRD-1-09": [
+  [
+   "core/tests/test_intelligence.py",
+   "test_never_two_models_resident_even_across_fallbacks"
+  ]
+ ],
+ "PRD-1-10": [
+  [
+   "core/tests/test_evidence_answer.py",
+   "test_a_citation_resolves_to_the_exact_text_by_page_block_message_part_and_span"
+  ],
+  [
+   "core/tests/test_redaction.py",
+   "test_a_normal_run_over_documents_and_mail_writes_no_content"
+  ]
+ ],
+ "PRD-1-11": [
+  [
+   "core/tests/test_backup.py",
+   "test_a_backup_verifies_holds_only_what_cannot_be_rebuilt_and_leaks_no_plaintext"
+  ],
+  [
+   "core/tests/test_migration.py",
+   "test_the_inventory_counts_and_sums_before_anything_is_read_or_written"
+  ]
+ ],
+ "PRD-2-02": [
+  [
+   "app/Tests/AtlasKitTests/PhoneTests.swift",
+   "testAPhonePairsReadsOfflineSyncsHandlesAConflictAndIsWipedWhenRevoked"
+  ]
+ ],
+ "PRD-2-03": [
+  [
+   "core/tests/test_contracts_v11.py",
+   "test_negotiation_selects_a_version_only_from_what_is_asked_and_advertised"
+  ],
+  [
+   "core/tests/test_contracts.py",
+   "test_every_type_of_the_contract_compiles"
+  ]
+ ],
+ "PRD-2-04": [
+  [
+   "core/tests/test_launcher.py",
+   "test_the_app_launches_the_core_hands_it_the_code_privately_enrols_and_acts_as_owner"
+  ],
+  [
+   "core/tests/test_updater.py",
+   "test_a_signed_update_installs_atomically_and_keeps_the_previous_version"
+  ]
+ ],
+ "PRD-2-05": [
+  [
+   "core/tests/test_devices.py",
+   "test_only_an_owner_client_can_open_a_pairing_offer_and_a_paired_device_is_never_an_owner"
+  ],
+  [
+   "core/tests/test_relay.py",
+   "test_the_relay_will_only_listen_on_a_private_or_vpn_address"
+  ],
+  [
+   "core/tests/test_transport.py",
+   "test_the_socket_and_its_folder_are_owner_only_and_a_signed_request_works_over_it"
+  ]
+ ],
+ "PRD-3-01": [
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testOnlyAvailableDestinationsAreListedAndTheOrderIsFixed"
+  ],
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testTheLayoutCollapsesTheInspectorBeforeTheSidebarAndEveryDestinationHasALabelAndASymbol"
+  ]
+ ],
+ "PRD-3-02": [
+  [
+   "app/Tests/AtlasKitTests/DesignSystemTests.swift",
+   "testTheConversationStateFollowsTheTaskAndKeepsAFailure"
+  ],
+  [
+   "app/Tests/AtlasKitTests/NotificationTests.swift",
+   "testNothingIsNotifiedUnlessTheOwnerTurnedNotificationsOn"
+  ]
+ ],
+ "PRD-3-03": [
+  [
+   "core/tests/test_policy.py",
+   "test_only_the_granted_source_type_is_searched_and_the_rest_is_disclosed"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_a_restricted_domain_answers_under_its_own_grant_with_an_exact_citation"
+  ]
+ ],
+ "PRD-3-04": [
+  [
+   "core/tests/test_browser_watchers.py",
+   "test_a_notification_carries_no_content_and_a_watcher_has_no_way_to_act"
+  ],
+  [
+   "core/tests/test_orchestrator.py",
+   "test_an_incomplete_workflow_is_never_reported_as_complete"
+  ]
+ ],
+ "PRD-3-05": [
+  [
+   "core/tests/test_documents.py",
+   "test_a_file_replaced_by_a_link_after_indexing_is_no_longer_a_source"
+  ],
+  [
+   "core/tests/test_mail.py",
+   "test_attachments_and_any_extra_field_are_never_stored_listed_searched_or_counted"
+  ],
+  [
+   "core/tests/test_consent_api.py",
+   "test_only_an_enrolled_owner_client_may_read_or_change_consent_and_any_client_may_read_index_counts"
+  ]
+ ],
+ "PRD-3-06": [
+  [
+   "core/tests/test_intelligence.py",
+   "test_research_mode_selects_the_deep_tier_and_unloads_the_primary_first"
+  ],
+  [
+   "core/tests/test_api_v11.py",
+   "test_a_1_1_answer_carries_coverage_model_and_the_echo_header"
+  ]
+ ],
+ "PRD-3-07": [
+  [
+   "core/tests/test_actions.py",
+   "test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use"
+  ]
+ ],
+ "PRD-3-08": [
+  [
+   "core/tests/test_orchestrator.py",
+   "test_the_registry_is_sealed_and_an_agent_cannot_change_its_own_authority"
+  ]
+ ],
+ "PRD-3-09": [
+  [
+   "core/tests/test_browser_watchers.py",
+   "test_page_text_is_untrusted_data_and_whatever_it_asks_for_is_refused"
+  ],
+  [
+   "core/tests/test_connectors.py",
+   "test_the_catalogue_is_data_and_every_integration_states_its_scopes_offline_retention_and_failure_behaviour"
+  ]
+ ],
+ "PRD-3-10": [
+  [
+   "core/tests/test_browser_engine.py",
+   "test_a_page_is_read_as_visible_text_and_nothing_it_does_can_post_anything"
+  ]
+ ],
+ "PRD-3-11": [
+  [
+   "core/tests/test_orchestrator.py",
+   "test_dependent_tasks_wait_and_receive_only_their_declared_inputs_while_independent_ones_run_together"
+  ]
+ ],
+ "PRD-4-01": [
+  [
+   "core/tests/test_documents.py",
+   "test_blocks_are_exact_paragraph_spans_and_every_passage_resolves_to_its_text"
+  ],
+  [
+   "core/tests/test_mail.py",
+   "test_headers_are_the_stored_fields_and_every_passage_resolves_to_its_exact_text"
+  ]
+ ],
+ "PRD-4-02": [
+  [
+   "core/tests/test_finance_calc.py",
+   "test_sums_are_exact_where_floats_are_not"
+  ],
+  [
+   "core/tests/test_migration.py",
+   "test_an_encrypted_legacy_copy_needs_its_key_and_a_wrong_key_is_a_code"
+  ]
+ ],
+ "PRD-4-03": [
+  [
+   "core/tests/test_macos_sources.py",
+   "test_the_owners_calendar_answers_through_the_core_only_under_a_grant_and_the_platform_permission"
+  ],
+  [
+   "core/tests/test_actions.py",
+   "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"
+  ]
+ ],
+ "PRD-4-08": [
+  [
+   "core/tests/test_macos_sources.py",
+   "test_a_denied_or_undecided_permission_gives_an_empty_source_and_a_granted_one_lists_newest_first"
+  ]
+ ],
+ "PRD-4-09": [
+  [
+   "core/tests/test_connectors.py",
+   "test_the_catalogue_is_data_and_every_integration_states_its_scopes_offline_retention_and_failure_behaviour"
+  ]
+ ],
+ "PRD-5-01": [
+  [
+   "core/tests/test_thresholds.py",
+   "test_the_synthetic_quality_thresholds_hold"
+  ],
+  [
+   "core/tests/test_bench.py",
+   "test_the_overhead_benchmark_runs_and_reports_percentiles_for_a_named_machine"
+  ]
+ ],
+ "PRD-5-02": [
+  [
+   "core/tests/test_exact.py",
+   "test_arithmetic_is_exact_not_float"
+  ],
+  [
+   "core/tests/test_evidence_answer.py",
+   "test_a_citation_resolves_to_the_exact_text_by_page_block_message_part_and_span"
+  ]
+ ],
+ "PRD-5-03": [
+  [
+   "core/tests/test_policy.py",
+   "test_only_the_granted_source_type_is_searched_and_the_rest_is_disclosed"
+  ],
+  [
+   "core/tests/test_redaction.py",
+   "test_a_normal_run_over_documents_and_mail_writes_no_content"
+  ],
+  [
+   "core/tests/test_egress.py",
+   "test_responses_are_text_only_bounded_and_instruction_like_text_is_flagged_never_obeyed"
+  ]
+ ],
+ "PRD-5-04": [
+  [
+   "core/tests/test_tasks.py",
+   "test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task"
+  ],
+  [
+   "core/tests/test_storage.py",
+   "test_every_durable_store_the_core_creates_has_its_own_category_and_only_strays_are_other"
+  ]
+ ],
+ "PRD-5-05": [
+  [
+   "core/tests/test_intelligence.py",
+   "test_concurrency_is_capped_at_two_with_one_interactive_and_one_background"
+  ],
+  [
+   "core/tests/test_intelligence.py",
+   "test_a_waiting_interactive_request_holds_back_new_background_work"
+  ],
+  [
+   "core/tests/test_intelligence.py",
+   "test_an_interactive_request_that_needs_another_model_stops_a_running_background_inference_and_does_not_wait_for_it"
+  ],
+  [
+   "core/tests/test_reliability.py",
+   "test_disk_pressure_pauses_indexing_and_says_so_then_resumes"
+  ]
+ ],
+ "PRD-5-06": [
+  [
+   "core/tests/test_swift_app_sources.py",
+   "test_the_app_claims_only_what_ci_proves_it_builds_launches_in_ci_and_has_had_no_ui_walkthrough"
+  ]
+ ],
+ "PRD-5-07": [
+  [
+   "core/tests/test_evals.py",
+   "test_retrieval_and_answer_quality_are_reported_separately_per_language_and_script"
+  ]
+ ],
+ "PRD-5-08": [
+  [
+   "core/tests/test_contracts.py",
+   "test_every_type_of_the_contract_compiles"
+  ],
+  [
+   "core/tests/test_architecture.py",
+   "test_every_module_has_a_layer_and_imports_only_from_below_or_its_own_layer"
+  ]
+ ],
+ "PRD-5A-01": [
+  [
+   "core/tests/test_policy.py",
+   "test_default_is_deny_nothing_is_retrieved_and_no_model_is_called"
+  ],
+  [
+   "core/tests/test_actions.py",
+   "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"
+  ]
+ ],
+ "PRD-5A-02": [
+  [
+   "core/tests/test_actions.py",
+   "test_sending_an_invitation_needs_approval_bound_to_the_exact_payload_and_is_single_use"
+  ]
+ ],
+ "PRD-5A-03": [
+  [
+   "core/tests/test_actions.py",
+   "test_the_action_matrix_only_the_four_categories_ever_need_approval"
+  ]
+ ],
+ "PRD-5A-05": [
+  [
+   "core/tests/test_browser_engine.py",
+   "test_a_page_is_read_as_visible_text_and_nothing_it_does_can_post_anything"
+  ],
+  [
+   "core/tests/test_actions.py",
+   "test_instructions_in_content_can_neither_propose_nor_approve"
+  ]
+ ],
+ "PRD-5A-06": [
+  [
+   "core/tests/test_orchestrator.py",
+   "test_a_high_impact_task_is_complete_only_when_independently_verified"
+  ],
+  [
+   "core/tests/test_browser_watchers.py",
+   "test_a_notification_carries_no_content_and_a_watcher_has_no_way_to_act"
+  ]
+ ],
+ "PRD-5A-07": [
+  [
+   "core/tests/test_orchestrator.py",
+   "test_a_plan_that_does_not_fit_the_registry_is_refused_before_anything_runs"
+  ],
+  [
+   "core/tests/test_research.py",
+   "test_public_research_is_off_by_default_even_with_a_gateway_configured"
+  ]
+ ],
+ "PRD-5A-08": [
+  [
+   "core/tests/test_actions.py",
+   "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"
+  ],
+  [
+   "core/tests/test_actions.py",
+   "test_the_audit_is_chained_content_free_and_tampering_is_detected"
+  ]
+ ],
+ "PRD-5A-09": [
+  [
+   "core/tests/test_actions.py",
+   "test_the_action_matrix_only_the_four_categories_ever_need_approval"
+  ]
+ ],
+ "PRD-5A-10": [
+  [
+   "core/tests/test_tasks.py",
+   "test_cancellation_is_honoured_before_the_run_and_during_it"
+  ]
+ ],
+ "PRD-5A-11": [
+  [
+   "core/tests/test_orchestrator.py",
+   "test_dependent_tasks_wait_and_receive_only_their_declared_inputs_while_independent_ones_run_together"
+  ]
+ ],
+ "PRD-5B-01": [
+  [
+   "core/tests/test_documents.py",
+   "test_an_oversized_file_and_a_parser_bomb_are_refused_not_truncated"
+  ],
+  [
+   "core/tests/test_mail.py",
+   "test_attachments_and_any_extra_field_are_never_stored_listed_searched_or_counted"
+  ]
+ ],
+ "PRD-5B-02": [
+  [
+   "core/tests/test_exact.py",
+   "test_arithmetic_is_exact_not_float"
+  ],
+  [
+   "core/tests/test_finance_calc.py",
+   "test_sums_are_exact_where_floats_are_not"
+  ]
+ ],
+ "PRD-5B-04": [
+  [
+   "core/tests/test_client.py",
+   "test_every_value_of_every_closed_vocabulary_has_a_message"
+  ],
+  [
+   "core/tests/test_redaction.py",
+   "test_a_normal_run_over_documents_and_mail_writes_no_content"
+  ]
+ ],
+ "PRD-5B-05": [
+  [
+   "core/tests/test_mail.py",
+   "test_attachments_and_any_extra_field_are_never_stored_listed_searched_or_counted"
+  ],
+  [
+   "core/tests/test_backup.py",
+   "test_a_backup_verifies_holds_only_what_cannot_be_rebuilt_and_leaks_no_plaintext"
+  ]
+ ],
+ "PRD-5B-06": [
+  [
+   "core/tests/test_bench.py",
+   "test_the_overhead_benchmark_runs_and_reports_percentiles_for_a_named_machine"
+  ],
+  [
+   "core/tests/test_reliability.py",
+   "test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run"
+  ]
+ ],
+ "PRD-5B-07": [
+  [
+   "app/Tests/AtlasKitTests/VoiceTests.swift",
+   "testDeniedPermissionAndMissingOnDeviceSpeechExplainThemselvesAndNeverStartListening"
+  ],
+  [
+   "app/Tests/AtlasKitTests/AloudTests.swift",
+   "testTheAnswerAndHowFarToTrustItAreReadInOrderAndNothingElse"
+  ]
+ ],
+ "UC-001": [
+  [
+   "core/tests/test_policy.py",
+   "test_only_the_granted_source_type_is_searched_and_the_rest_is_disclosed"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_a_restricted_domain_answers_under_its_own_grant_with_an_exact_citation"
+  ]
+ ],
+ "UC-002": [
+  [
+   "core/tests/test_evals.py",
+   "test_the_set_is_locked_so_a_change_must_be_a_new_version"
+  ],
+  [
+   "core/tests/test_client.py",
+   "test_every_value_of_every_closed_vocabulary_has_a_message"
+  ]
+ ],
+ "UC-003": [
+  [
+   "core/tests/test_egress.py",
+   "test_a_public_query_is_sent_and_returns_untrusted_data_with_provenance_and_a_redacted_audit"
+  ],
+  [
+   "core/tests/test_research.py",
+   "test_public_research_is_off_by_default_even_with_a_gateway_configured"
+  ]
+ ],
+ "UC-004": [
+  [
+   "core/tests/test_orchestrator.py",
+   "test_a_plan_that_does_not_fit_the_registry_is_refused_before_anything_runs"
+  ]
+ ],
+ "UC-005": [
+  [
+   "core/tests/test_actions.py",
+   "test_a_stale_edit_is_a_conflict_not_an_overwrite_and_a_failing_handler_is_a_code"
+  ]
+ ],
+ "UC-007": [
+  [
+   "core/tests/test_evidence_answer.py",
+   "test_a_citation_resolves_to_the_exact_text_by_page_block_message_part_and_span"
+  ],
+  [
+   "core/tests/test_api.py",
+   "test_a_citation_text_is_not_delivered_when_the_grant_is_withdrawn_while_it_is_being_read"
+  ]
+ ],
+ "UC-008": [
+  [
+   "core/tests/test_tasks.py",
+   "test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task"
+  ]
+ ],
+ "UC-009": [
+  [
+   "core/tests/test_tasks.py",
+   "test_cancellation_is_honoured_before_the_run_and_during_it"
+  ],
+  [
+   "core/tests/test_api.py",
+   "test_cancel_over_the_api_is_safe_to_repeat_and_unfinished_results_are_a_conflict"
+  ]
+ ],
+ "UC-010": [
+  [
+   "core/tests/test_actions.py",
+   "test_a_stale_edit_is_a_conflict_not_an_overwrite_and_a_failing_handler_is_a_code"
+  ]
+ ],
+ "UC-011": [
+  [
+   "core/tests/test_designation.py",
+   "test_an_enabled_source_is_not_declined_it_is_withdrawn_and_a_declined_one_can_be_enabled_later"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it"
+  ]
+ ],
+ "UC-012": [
+  [
+   "core/tests/test_tasks.py",
+   "test_cancellation_is_honoured_before_the_run_and_during_it"
+  ]
+ ],
+ "UC-013": [
+  [
+   "app/Tests/AtlasKitTests/VoiceTests.swift",
+   "testDeniedPermissionAndMissingOnDeviceSpeechExplainThemselvesAndNeverStartListening"
+  ],
+  [
+   "app/Tests/AtlasKitTests/AloudTests.swift",
+   "testTheAnswerAndHowFarToTrustItAreReadInOrderAndNothingElse"
+  ]
+ ],
+ "UC-014": [
+  [
+   "core/tests/test_browser_watchers.py",
+   "test_a_notification_carries_no_content_and_a_watcher_has_no_way_to_act"
+  ]
+ ],
+ "UC-015": [
+  [
+   "core/tests/test_actions.py",
+   "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"
+  ]
+ ],
+ "UC-016": [
+  [
+   "core/tests/test_client.py",
+   "test_every_value_of_every_closed_vocabulary_has_a_message"
+  ]
+ ],
+ "UC-017": [
+  [
+   "core/tests/test_finance_calc.py",
+   "test_sums_are_exact_where_floats_are_not"
+  ],
+  [
+   "core/tests/test_migration.py",
+   "test_the_inventory_counts_and_sums_before_anything_is_read_or_written"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_a_migrated_legacy_finance_database_answers_through_the_core_under_the_finance_grant"
+  ]
+ ],
+ "UC-018": [
+  [
+   "core/tests/test_health.py",
+   "test_health_names_each_check_and_reports_codes_not_content"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_the_health_summary_is_computed_by_code_labels_measured_and_estimated_and_never_converts_units"
+  ]
+ ],
+ "UC-022": [
+  [
+   "core/tests/test_research.py",
+   "test_public_research_is_off_by_default_even_with_a_gateway_configured"
+  ],
+  [
+   "core/tests/test_egress.py",
+   "test_a_public_query_is_sent_and_returns_untrusted_data_with_provenance_and_a_redacted_audit"
+  ]
+ ],
+ "UC-026": [
+  [
+   "core/tests/test_macos_sources.py",
+   "test_a_denied_or_undecided_permission_gives_an_empty_source_and_a_granted_one_lists_newest_first"
+  ]
+ ],
+ "UC-027": [
+  [
+   "core/tests/test_enrolment.py",
+   "test_a_fresh_install_enrols_its_owner_client_unsigned_once_and_can_then_act_as_owner"
+  ],
+  [
+   "core/tests/test_devices.py",
+   "test_a_member_cannot_revoke_anything_and_the_last_owner_cannot_be_revoked"
+  ],
+  [
+   "core/tests/test_consent_api.py",
+   "test_only_an_enrolled_owner_client_may_read_or_change_consent_and_any_client_may_read_index_counts"
+  ]
+ ],
+ "UC-029": [
+  [
+   "core/tests/test_orchestrator.py",
+   "test_an_incomplete_workflow_is_never_reported_as_complete"
+  ]
+ ],
+ "UC-030": [
+  [
+   "core/tests/test_actions.py",
+   "test_the_action_matrix_only_the_four_categories_ever_need_approval"
+  ],
+  [
+   "core/tests/test_orchestrator.py",
+   "test_the_registry_is_sealed_and_an_agent_cannot_change_its_own_authority"
+  ]
+ ],
+ "UC-031": [
+  [
+   "core/tests/test_tasks.py",
+   "test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task"
+  ]
+ ],
+ "UC-032": [
+  [
+   "core/tests/test_connectors.py",
+   "test_the_catalogue_is_data_and_every_integration_states_its_scopes_offline_retention_and_failure_behaviour"
+  ]
+ ],
+ "UC-034": [
+  [
+   "core/tests/test_swift_app_sources.py",
+   "test_the_app_claims_only_what_ci_proves_it_builds_launches_in_ci_and_has_had_no_ui_walkthrough"
+  ]
+ ],
+ "UC-038": [
+  [
+   "core/tests/test_browser_watchers.py",
+   "test_a_notification_carries_no_content_and_a_watcher_has_no_way_to_act"
+  ]
+ ],
+ "UC-040": [
+  [
+   "core/tests/test_backup.py",
+   "test_a_backup_verifies_holds_only_what_cannot_be_rebuilt_and_leaks_no_plaintext"
+  ]
+ ],
+ "UC-041": [
+  [
+   "core/tests/test_designation.py",
+   "test_an_enabled_source_is_not_declined_it_is_withdrawn_and_a_declined_one_can_be_enabled_later"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it"
+  ]
+ ],
+ "UC-042": [
+  [
+   "core/tests/test_models.py",
+   "test_a_signed_manifest_loads_and_an_unknown_model_is_refused"
+  ],
+  [
+   "core/tests/test_updater.py",
+   "test_a_signed_update_installs_atomically_and_keeps_the_previous_version"
+  ]
+ ],
+ "UC-044": [
+  [
+   "core/tests/test_storage.py",
+   "test_usage_is_reported_by_category_and_originals_are_not_counted"
+  ]
+ ],
+ "UC-046": [
+  [
+   "core/tests/test_launcher.py",
+   "test_a_locked_keychain_makes_the_core_exit_with_its_own_code_and_the_launcher_says_the_mac_needs_sign_in"
+  ],
+  [
+   "core/tests/test_launchagent.py",
+   "test_the_agent_runs_only_in_the_owners_login_session_and_restarts_only_after_a_crash"
+  ]
+ ],
+ "UC-L01": [
+  [
+   "core/tests/test_consent_api.py",
+   "test_only_an_enrolled_owner_client_may_read_or_change_consent_and_any_client_may_read_index_counts"
+  ]
+ ],
+ "UC-L02": [
+  [
+   "core/tests/test_consent_api.py",
+   "test_only_an_enrolled_owner_client_may_read_or_change_consent_and_any_client_may_read_index_counts"
+  ],
+  [
+   "core/tests/test_policy.py",
+   "test_default_is_deny_nothing_is_retrieved_and_no_model_is_called"
+  ]
+ ],
+ "UC-L03": [
+  [
+   "core/tests/test_documents.py",
+   "test_indexing_is_newest_first_by_modification_time_and_progress_is_visible"
+  ],
+  [
+   "core/tests/test_mail.py",
+   "test_a_mailbox_index_cannot_be_built_without_an_access_check"
+  ]
+ ],
+ "UC-L04": [
+  [
+   "core/tests/test_documents.py",
+   "test_a_file_that_cannot_be_read_in_full_is_an_explicit_outcome_never_skipped_or_cited"
+  ]
+ ],
+ "UC-L06": [
+  [
+   "core/tests/test_documents.py",
+   "test_a_platform_that_cannot_guarantee_race_free_reads_refuses_to_run"
+  ],
+  [
+   "core/tests/test_isolated.py",
+   "test_without_isolation_the_same_code_can_open_a_network_connection"
+  ]
+ ],
+ "UC-L07": [
+  [
+   "core/tests/test_research.py",
+   "test_public_research_is_off_by_default_even_with_a_gateway_configured"
+  ],
+  [
+   "core/tests/test_egress.py",
+   "test_function_words_do_not_block_a_public_query_but_the_questions_own_content_words_do"
+  ]
+ ],
+ "UC-L09": [
+  [
+   "core/tests/test_intelligence.py",
+   "test_research_mode_selects_the_deep_tier_and_unloads_the_primary_first"
+  ]
+ ],
+ "UC-L11": [
+  [
+   "core/tests/test_tasks.py",
+   "test_a_crash_at_every_lifecycle_boundary_recovers_to_one_completed_task"
+  ],
+  [
+   "core/tests/test_orchestrator.py",
+   "test_the_registry_is_sealed_and_an_agent_cannot_change_its_own_authority"
+  ]
+ ],
+ "UC-L13": [
+  [
+   "core/tests/test_actions.py",
+   "test_the_action_matrix_only_the_four_categories_ever_need_approval"
+  ],
+  [
+   "core/tests/test_connectors.py",
+   "test_the_catalogue_is_data_and_every_integration_states_its_scopes_offline_retention_and_failure_behaviour"
+  ]
+ ],
+ "UC-L14": [
+  [
+   "core/tests/test_actions.py",
+   "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"
+  ],
+  [
+   "core/tests/test_connectors.py",
+   "test_a_reversible_change_is_prompt_free_and_undoable_while_unlocking_a_door_needs_the_owners_approval"
+  ]
+ ],
+ "UC-L15": [
+  [
+   "core/tests/test_backup.py",
+   "test_a_backup_verifies_holds_only_what_cannot_be_rebuilt_and_leaks_no_plaintext"
+  ]
+ ],
+ "UC-L17": [
+  [
+   "core/tests/test_updater.py",
+   "test_a_signed_update_installs_atomically_and_keeps_the_previous_version"
+  ]
+ ],
+ "UC-L18": [
+  [
+   "core/tests/test_migration.py",
+   "test_the_inventory_counts_and_sums_before_anything_is_read_or_written"
+  ],
+  [
+   "core/tests/test_maintenance.py",
+   "test_the_legacy_finance_database_is_imported_through_the_command_and_the_original_is_untouched"
+  ]
+ ],
+ "UC-L19": [
+  [
+   "core/tests/test_designation.py",
+   "test_the_platform_taking_a_granted_permission_back_revokes_the_grant_and_purges"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it"
+  ]
+ ],
+ "UC-L21": [
+  [
+   "core/tests/test_exact.py",
+   "test_dates_are_exact_and_strict"
+  ]
+ ],
+ "UC-L22": [
+  [
+   "core/tests/test_evals.py",
+   "test_the_set_is_locked_so_a_change_must_be_a_new_version"
+  ]
+ ],
+ "UC-L23": [
+  [
+   "core/tests/test_actions.py",
+   "test_a_stale_edit_is_a_conflict_not_an_overwrite_and_a_failing_handler_is_a_code"
+  ]
+ ],
+ "UC-L24": [
+  [
+   "core/tests/test_storage.py",
+   "test_pressure_can_pause_derived_work_and_warn_but_never_delete_anything"
+  ],
+  [
+   "core/tests/test_reliability.py",
+   "test_a_crash_at_every_boundary_of_the_real_stack_gives_the_same_answer_as_an_uninterrupted_run"
+  ]
+ ],
+ "UC-L25": [
+  [
+   "core/tests/test_browser_watchers.py",
+   "test_a_notification_carries_no_content_and_a_watcher_has_no_way_to_act"
+  ]
+ ],
+ "UC-L27": [
+  [
+   "core/tests/test_policy.py",
+   "test_an_owner_authorised_finance_task_lets_the_local_model_read_finance_and_nothing_else"
+  ],
+  [
+   "core/tests/test_domains.py",
+   "test_a_restricted_domain_answers_under_its_own_grant_with_an_exact_citation"
+  ]
+ ],
+ "UC-L28": [
+  [
+   "core/tests/test_browser_engine.py",
+   "test_a_page_is_read_as_visible_text_and_nothing_it_does_can_post_anything"
+  ]
+ ]
+}

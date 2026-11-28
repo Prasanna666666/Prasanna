@@ -42,7 +42,7 @@ MAX_MALFORMED_ROWS = (
 )
 PAGE_SIZE = 500  # the most the Core asks for, and accepts, in one adapter call: nothing unbounded is ever materialised
 MAX_LIST_WORK = 200_000  # the most listing entries examined in one scan, whatever the adapter does
-SCHEMA_VERSION = 2  # 2: the postings table (term -> message)
+SCHEMA_VERSION = 3  # 2: the postings table (term -> message); 3: unspaced scripts indexed as bigrams (documents._tokens)
 _ID = re.compile(r"[A-Za-z0-9._@<>+=-]{1,200}\Z")
 _CONTROL = re.compile(r"[\x00-\x1f\x7f]")
 

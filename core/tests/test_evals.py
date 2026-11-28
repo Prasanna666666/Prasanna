@@ -14,7 +14,7 @@ sys.path.insert(0, str(EVALS))
 
 import harness  # noqa: E402
 
-SET_SHA256 = "0937684f694d527d2d8b6d833eb59b2b1ee174b3ae96b1a90dda6b6cfc0a48f7"
+SET_SHA256 = "59599c404789e681cc3bdd15140a0e077efc5b2de0eb1308d166f330e61aaa88"
 REQUIRED = {"answerable", "abstention", "contradictory", "stale", "hallucination", "citation", "injection", "cross_domain"}
 
 
@@ -24,7 +24,7 @@ def report() -> dict:
 
 
 def test_the_set_is_locked_so_a_change_must_be_a_new_version():
-    assert harness.set_sha256() == SET_SHA256 and json.loads(harness.SET_FILE.read_text())["version"] == "1"
+    assert harness.set_sha256() == SET_SHA256 and json.loads(harness.SET_FILE.read_text())["version"] == "2"
 
 
 def test_every_case_behaves_as_specified_through_the_real_pipeline(report):
@@ -42,9 +42,10 @@ def test_retrieval_and_answer_quality_are_reported_separately_per_language_and_s
     assert report["retrieval_quality"]["by_language"]["nl"]["recall"] == 1.0 and report["retrieval_quality"]["by_script"]["devanagari"]["recall"] == 1.0
 
 
-def test_a_known_retrieval_gap_is_reported_not_hidden_and_the_case_still_passes_as_a_gap(report):
-    assert [g["id"] for g in report["known_gaps"]] == ["ja-total"]
-    assert report["retrieval_quality"]["by_script"]["han_kana"]["recall"] == 0.0  # the gap shows in the retrieval numbers, apart from answer quality
+def test_unspaced_japanese_is_retrieved_and_cited_and_no_retrieval_gap_remains(report):
+    """UC-L22: Japanese has no spaces between words; indexed as overlapping two-character pieces, the question finds its invoice (set v1 recorded
+    this case as a known gap with recall 0)."""
+    assert report["known_gaps"] == [] and report["retrieval_quality"]["by_script"]["han_kana"]["recall"] == 1.0
 
 
 def test_the_report_states_what_it_does_not_measure(report):
@@ -54,4 +55,4 @@ def test_the_report_states_what_it_does_not_measure(report):
 
 def test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded(report):
     # the outcomes are checked by the cases themselves; here we pin the totals so a weakened check cannot go unnoticed
-    assert report["answer_quality"]["outcomes"] == {"grounded": 8, "no_evidence": 1, "ungrounded": 4, "rejected": 1}
+    assert report["answer_quality"]["outcomes"] == {"grounded": 9, "no_evidence": 0, "ungrounded": 4, "rejected": 1}

@@ -22,11 +22,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
-CI_REVISION = "09498515beefed3e90feac0e201722822df4a6f5"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46105400530"
+CI_REVISION = "d528055ec8756d8d55efe2f104cfe929c7bf8cb1"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140856913627", "core-3.13": f"{CI_RUN}/job/140856913694", "kit": f"{CI_RUN}/job/140856913438",
-    "macos": f"{CI_RUN}/job/140856913725", "app": f"{CI_RUN}/job/140856913737", "ios": f"{CI_RUN}/job/140856913680",
+    "core-3.11": f"{CI_RUN}/job/140883255575", "core-3.13": f"{CI_RUN}/job/140883255649", "kit": f"{CI_RUN}/job/140883255527",
+    "macos": f"{CI_RUN}/job/140883255653", "app": f"{CI_RUN}/job/140883255744", "ios": f"{CI_RUN}/job/140883255380",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
@@ -34,6 +34,7 @@ V04_REVIEW = ("6574c2cb8dd23c9d1a3a7084c6aa1e207756900c", "https://github.com/Pr
 V05_REVIEW = ("e23b04bff48c2c3d79976b50921f86d91a3c46ce", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094872675", "6094872675")
 V06_REVIEW = ("a3c7f7d009ff70d7feda917d5d4a3ea9dc030e71", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095269004", "6095269004")
 V07_REVIEW = ("09498515beefed3e90feac0e201722822df4a6f5", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095905696", "6095905696")
+V08_REVIEW = ("d528055ec8756d8d55efe2f104cfe929c7bf8cb1", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6096381812", "6096381812")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -74,8 +75,16 @@ def crit(cid: str, stage, title: str, source_ref: str, pass_condition: str, evid
 
 
 def _tests_in(cell: str) -> list[dict]:
-    """Exact test references (`tests/test_x.py::test_y` or `test_x.py::test_y`) named in a source cell."""
-    found = re.findall(r"(?:tests/)?(test_\w+\.py)::(test_\w+)", cell)
+    """Exact test references named in a source cell: `test_x.py::test_y`; a bare `::test_y` (the file found by searching core/tests); and a
+    whole file named alone (`test_x.py`), meaning every test in it, as the stage document states for such rows."""
+    found = list(re.findall(r"(?:tests/)?(test_\w+\.py)::(test_\w+)", cell))
+    for name in re.findall(r"(?<![\w.])::(test_\w+)", cell):
+        owner = [f.name for f in sorted((ROOT / "core" / "tests").glob("test_*.py")) if re.search(rf"^def {name}\b", f.read_text(encoding="utf-8"), re.M)]
+        found += [(owner[0], name)] if owner else []
+    for file in re.findall(r"`(test_\w+\.py)`", cell):
+        path = ROOT / "core" / "tests" / file
+        if path.exists():
+            found += [(file, n) for n in re.findall(r"^def (test_\w+)", path.read_text(encoding="utf-8"), re.M)]
     return [test(f"core/tests/{f}", n) for f, n in dict.fromkeys(found)]
 
 
@@ -275,6 +284,7 @@ V03_CHANGES = [
     "Scored revision moved to e23b04b and its PR CI run 46086267907. Verdicts at e23b04b (review 6094872675) mirrored: MAC-17 fail (ownership across data folders; add-only checkpoint kept), MAC-08 fail (investigate the Disabled window state first), MAC-06 fail.",
     "Scored revision moved to a3c7f7d and its PR CI run 46095345457. Verdicts at a3c7f7d (review 6095269004) mirrored: MAC-17 fail (serialize recovery with live restore, enforce ownership at startup, preserve data on an unconfirmed commit point; account-wide design accepted), MAC-08 fail (make the window key first), MAC-06 fail.",
     "Scored revision moved to 0949851 and its PR CI run 46105400530. Verdicts at 0949851 (review 6095905696) mirrored: MAC-17 fail (key layer fixed; the startup store-open window and restore copy/activation need one ordering), MAC-08 fail (choose (i): system-background comparison and a probe in the same foreground state), MAC-06 fail.",
+    "Scored revision moved to d528055 and its PR CI run 46113892127. Verdicts at d528055 (review 6096381812) mirrored: MAC-17 fail (failure cleanup can unlink a held lock pathname), MAC-08 fail (proceed with the Dark bisect and a second hosted configuration for Light), MAC-06 fail.",
 ]
 
 
@@ -390,6 +400,113 @@ def apply_verdicts_0949851(criteria: list[dict]) -> list[dict]:
     by["MAC-17"]["review"] = _verdict(V07_REVIEW, "fail", note="key layer fixed; startup releases the guard before its stores open and restore copies before the guard: one ordering of target reservation, key ownership and first store open is needed")
     by["MAC-08"]["review"] = _verdict(V07_REVIEW, "fail", note="window state controlled, findings persist; compare the real Dark screen on the system background and repeat the probe in the same foreground state")
     by["MAC-06"]["review"] = _verdict(V07_REVIEW, "fail", note="a required hosted check remains red")
+    return apply_verdicts_d528055(criteria)
+
+
+def apply_verdicts_d528055(criteria: list[dict]) -> list[dict]:
+    """The architect's review of d528055 (review 6096381812): its explicit criterion verdicts."""
+    by = {c["id"]: c for c in criteria}
+    by["MAC-17"]["review"] = _verdict(V08_REVIEW, "fail", note="startup and in-progress restore windows closed; failure cleanup can still unlink the lock pathname while the reservation holds the inode")
+    by["MAC-08"]["review"] = _verdict(V08_REVIEW, "fail", note="bisect the Dark-only difference one modifier at a time; verify the Light reproduction on a second supported hosted macOS configuration")
+    by["MAC-06"]["review"] = _verdict(V08_REVIEW, "fail", note="the required Mac UI job failed")
+    return criteria
+
+
+V04_EVIDENCE = ROOT / "core" / "docs" / "v04_checkpoint_evidence.json"
+V04_CHECKPOINT = (
+    "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI "
+    "at the scored revision; the rest of the pass condition remains open (recorded in open_gap)"
+)
+V04_SPLITS = {
+    "UC-033": "Mac-to-iPhone handoff on a real iPhone and network",
+    "UC-L16": "device loss handled on a real lost or stolen phone",
+    "PRD-4-07": "Home and devices on the owner's real accessories and network",
+    "S3-C12": "performance measured on the target Mac with the selected model",
+}
+V04_CHANGES = [
+    "v0.4 (PROPOSED, comment 7235843033): PRD and use-case rows the conformance matrices mark PARTIAL get the checkpoint above; 0.5 is earned "
+    "only from checkpoint-specific test evidence listed in core/docs/v04_checkpoint_evidence.json (exact tests plus the hosted jobs that run them).",
+    "v0.4 (PROPOSED): UC-033, UC-L16, PRD-4-07 and S3-C12 are split into their scored software part and an excluded -DEV device part.",
+    "v0.4 (PROPOSED): UC-041, UC-L09 and PRD-5-05 have complete software and only device verification left: the software part is full from exact tests, the device part is a -DEV row. UC-L19 is full: its one recorded gap, ATLAS-CORE-092, was closed by MAC-11, MAC-12 and MAC-15 (architect-passed).",
+]
+
+
+# Rows whose software is complete and whose only recorded gap is owner-hardware or physical-device verification (owner direction: hardware
+# is outside the measure). The software part earns full credit from the listed tests; the device part is a separate out-device row.
+V04_DEVICE_ONLY_GAPS = {
+    "UC-041": ("real TCC prompt and permission-reset behaviour verified on the owner's Mac", [
+        ("core/tests/test_designation.py", "test_the_platform_taking_a_granted_permission_back_revokes_the_grant_and_purges"),
+        ("core/tests/test_designation.py", "test_an_enabled_source_is_not_declined_it_is_withdrawn_and_a_declined_one_can_be_enabled_later"),
+        ("core/tests/test_domains.py", "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it")]),
+    "UC-L09": ("switching between the real selected models on the owner's Mac, with quality preserved", [
+        ("core/tests/test_intelligence.py", "test_research_mode_selects_the_deep_tier_and_unloads_the_primary_first"),
+        ("core/tests/test_intelligence.py", "test_never_two_models_resident_even_across_fallbacks"),
+        ("core/tests/test_intelligence.py", "test_a_swap_between_verify_and_use_unloads_and_refuses"),
+        ("core/tests/test_intelligence.py", "test_default_uses_the_primary_and_the_answer_carries_its_identity")]),
+    "PRD-5-05": ("the owner's workload measured on the target Mac", [
+        ("core/tests/test_intelligence.py", "test_concurrency_is_capped_at_two_with_one_interactive_and_one_background"),
+        ("core/tests/test_intelligence.py", "test_a_waiting_interactive_request_holds_back_new_background_work"),
+        ("core/tests/test_intelligence.py", "test_an_interactive_request_that_needs_another_model_stops_a_running_background_inference_and_does_not_wait_for_it"),
+        ("core/tests/test_reliability.py", "test_disk_pressure_pauses_indexing_and_says_so_then_resumes")]),
+}
+V04_DEVICE_ONLY_GAPS["UC-L22"] = ("multilingual answer quality of the real selected model on the target Mac", [
+    ("core/tests/test_documents.py", "test_unspaced_scripts_are_indexed_as_overlapping_pairs_so_a_japanese_question_finds_its_document"),
+    ("core/tests/test_evals.py", "test_unspaced_japanese_is_retrieved_and_cited_and_no_retrieval_gap_remains"),
+    ("core/tests/test_evals.py", "test_retrieval_and_answer_quality_are_reported_separately_per_language_and_script"),
+    ("core/tests/test_client.py", "test_a_missing_answer_and_a_hallucinated_figure_are_shown_as_not_confirmed_never_as_checked"),
+])  # the software gap (unspaced-script retrieval) is closed in this batch; only the real-model measurement remains
+V04_DEVICE_ONLY_GAPS["PRD-5-01"] = ("latency, memory and thermal results on the target Mac", [
+    ("core/tests/test_thresholds.py", "test_the_foundation_overhead_stays_within_its_regression_thresholds"),
+    ("core/tests/test_bench.py", "test_the_overhead_benchmark_runs_and_reports_percentiles_for_a_named_machine"),
+    ("core/tests/test_intelligence.py", "test_a_waiting_interactive_request_holds_back_new_background_work"),
+    ("core/tests/test_thresholds.py", "test_the_real_model_thresholds_are_proposed_and_clearly_not_enforced"),
+])
+V04_DEVICE_ONLY_GAPS["PRD-3-06"] = ("the owner's selected model, quantisation, context and quality on the target Mac", [
+    ("core/tests/test_intelligence.py", "test_default_uses_the_primary_and_the_answer_carries_its_identity"),
+    ("core/tests/test_intelligence.py", "test_the_gate_remains_the_only_door_and_the_identity_survives_it"),
+    ("core/tests/test_intelligence.py", "test_routing_ignores_the_question_text_and_is_deterministic"),
+    ("core/tests/test_api_v11.py", "test_a_1_1_answer_carries_coverage_model_and_the_echo_header"),
+    ("core/tests/test_api_v11.py", "test_a_withheld_1_1_answer_reports_no_coverage_of_the_revoked_source_and_no_model"),
+])
+# Rows whose recorded gap a later, architect-passed change closed: the gap's own evidence is cited.
+V04_GAP_CLOSED = {
+    "UC-L19": ("ATLAS-CORE-092 (the API read-after-check race) is closed by MAC-11, MAC-12 and MAC-15, each passed by the architect", [
+        ("core/tests/test_designation.py", "test_the_platform_taking_a_granted_permission_back_revokes_the_grant_and_purges"),
+        ("core/tests/test_domains.py", "test_withdrawing_a_domain_purges_its_index_and_what_tasks_derived_from_it"),
+        ("core/tests/test_api.py", "test_a_grant_withdrawn_at_the_last_read_before_delivery_still_removes_the_result"),
+        ("core/tests/test_api.py", "test_a_citation_text_is_not_delivered_when_the_grant_is_withdrawn_while_it_is_being_read"),
+        ("core/tests/test_domains.py", "test_a_summary_is_withheld_when_its_domain_is_withdrawn_while_the_records_are_being_read")]),
+}
+
+
+def _full(c: dict, refs: list[tuple[str, str]], note: str) -> None:
+    c["implementation"] = {"state": "full", "evidence": [{**test(p, n), "proves": "full"} for p, n in refs] + [{**j, "proves": "full"} for j in (ci("core-3.11"), ci("core-3.13"), ci("macos", "Core tests on macOS"))]}
+    c["v04_basis"] = note
+
+
+def apply_v04(criteria: list[dict]) -> list[dict]:
+    """v0.3 -> v0.4 (proposed): checkpoints with mapped evidence for partial PRD and use-case rows, and device splits."""
+    by = {c["id"]: c for c in criteria}
+    mapped = json.loads(V04_EVIDENCE.read_text(encoding="utf-8"))
+    for cid, refs in mapped.items():
+        c = by.get(cid)
+        if c is None or c["scope"] != "in" or c["implementation"]["state"] != "none":
+            continue
+        swift = any(path.startswith("app/") for path, _ in refs)
+        jobs = [ci("core-3.11"), ci("core-3.13"), ci("macos", "Swift tests and Core tests on macOS")] if swift else [ci("core-3.11"), ci("core-3.13"), ci("macos", "Core tests on macOS")]
+        c["checkpoint"] = V04_CHECKPOINT
+        c["implementation"] = {"state": "checkpoint", "evidence": [{**test(path, name), "proves": "checkpoint"} for path, name in refs] + [{**j, "proves": "checkpoint"} for j in jobs]}
+    for cid, (device, refs) in V04_DEVICE_ONLY_GAPS.items():
+        c = by[cid]
+        c["pass_condition"] = f"The software part of the requirement is met as specified on the candidate build; the remaining device-only verification ({device}) is {cid}-DEV."
+        _full(c, refs, "software complete; only device verification remains (split to the -DEV row)")
+        V04_SPLITS.setdefault(cid, device)
+    for cid, (note, refs) in V04_GAP_CLOSED.items():
+        _full(by[cid], refs, note)
+    for cid, device in V04_SPLITS.items():
+        c = by[cid]
+        c["title"] = f"{c['title']} (software part)"
+        criteria.append({**crit(f"{cid}-DEV", c.get("stage"), f"{c['title'].removesuffix(' (software part)')} (device part)", c["source_ref"], f"Verified on physical hardware: {device}.", "Owner-run check on the physical device", source=c["source"], scope="out-device"), "split_from": cid})
     return criteria
 
 
@@ -411,15 +528,15 @@ def main() -> int:
     criteria += conformance(ROOT / "docs" / "genesis" / "PRD_CONFORMANCE.md", "PRD", "prd")
     criteria += conformance(ROOT / "docs" / "genesis" / "USE_CASE_CONFORMANCE.md", "UCX", "use-case")
     criteria += first_mac()
-    criteria = apply_v03(criteria)
+    criteria = apply_v04(apply_v03(criteria))
     seen: dict[str, int] = {}
     for c in criteria:
         seen[c["id"]] = seen.get(c["id"], 0) + 1
         if seen[c["id"]] > 1:
             c["id"] = f"{c['id']}.{seen[c['id']]}"
     register = {
-        "version": "0.3",
-        "status": "agreed reporting baseline: confirmed by Codex in review 6093596586 (baseline decision, comment 7228002976)",
+        "version": "0.4",
+        "status": "PROPOSED, not agreed: v0.4 awaits Codex's decision (comment 7235843033); v0.3 is the agreed baseline (review 6093596586)",
         "scored_revision": CI_REVISION,
         "rules": "PR #8 comment 7226542434 (scoring) and 7226926847 (schedule protocol)",
         "scoring": {"full": 1.0, "checkpoint": 0.5, "none": 0.0},
@@ -429,7 +546,7 @@ def main() -> int:
             "aggregate": "composed of other criteria: scored through them only",
             "boundary": "a scope guard that is already true: not a deliverable",
         },
-        "changes_from_previous": CHANGES + V03_CHANGES,
+        "changes_from_previous": CHANGES + V03_CHANGES + V04_CHANGES,
         "decisions": DECISIONS,
         "criteria": criteria,
         "review_batches": previous.get("review_batches", []),

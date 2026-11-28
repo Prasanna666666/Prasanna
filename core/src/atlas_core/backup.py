@@ -399,8 +399,10 @@ def _remove_made(made: list[Path], target: Path, created_target: bool) -> None:
     for name in LIVE_DBS:
         for suffix in ("-wal", "-shm"):
             (target / f"{name}{suffix}").unlink(missing_ok=True)
-    if created_target:
-        shutil.rmtree(target, ignore_errors=True)
+    if created_target:  # everything this restore made, except the folder lock: a lock file is never unlinked while it may be held
+        for entry in target.iterdir():
+            if entry.name != FOLDER_LOCK:
+                shutil.rmtree(entry, ignore_errors=True) if entry.is_dir() and not entry.is_symlink() else entry.unlink(missing_ok=True)
 
 
 def restore_backup(
@@ -424,24 +426,17 @@ def restore_backup(
     target.mkdir(parents=True, exist_ok=True, mode=0o700)
     if target.is_symlink():  # replaced between the check and the create
         raise BackupError("target_not_empty")
-    lock_made = not (target / FOLDER_LOCK).exists()
     try:
         reservation = reserve(target)  # the target's own folder lock, held until the keys are active: no Core can start on a partial restore
     except KeyRestoreError:
         raise BackupError("target_in_use") from None
-    kept = False
     try:
         if _has_entries(target):  # written by a Core that ran between the first check and the reservation
             raise BackupError("target_not_empty")
-        report = _restore_into(folder, target, manifest, bundle, created_target, provision_keys)
-        kept = True
-        return report
-    except KeyCommitIncomplete:
-        kept = True  # the restored files stay for recovery to finish
-        raise
+        return _restore_into(folder, target, manifest, bundle, created_target, provision_keys)
     finally:
-        if not kept and lock_made and target.exists():
-            (target / FOLDER_LOCK).unlink(missing_ok=True)  # a failed restore leaves an existing folder as it found it
+        # The lock file is never unlinked: removing its name while this descriptor (or a Core's) holds the inode would let a new opener
+        # lock a different file at the same path. A folder holding only its lock file is empty (keyrestore and the restore both say so).
         os.close(reservation)
 
 

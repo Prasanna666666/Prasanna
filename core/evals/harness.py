@@ -37,7 +37,7 @@ from atlas_core.service import Deps, TaskService  # noqa: E402
 from atlas_core.tasks import TaskStore  # noqa: E402
 from atlas_core.values import LanguageIn  # noqa: E402
 
-SET_FILE = HERE / "set_v1.json"
+SET_FILE = HERE / "set_v2.json"  # v2: ja-total is answerable now that unspaced scripts are indexed as bigrams (v1 recorded it as a known gap)
 TOP_K = 8
 
 

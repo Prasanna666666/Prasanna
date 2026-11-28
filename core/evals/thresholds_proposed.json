@@ -1,7 +1,7 @@
 {
   "status": "PROPOSED from the developer-container baseline for the architect and owner to accept (STAGE-3-EXECUTION-PLAN section 6: thresholds are proposed from a baseline and accepted before they become release gates). Nothing here is a target-Mac or real-model result.",
   "baseline": {
-    "set_sha256": "0937684f694d527d2d8b6d833eb59b2b1ee174b3ae96b1a90dda6b6cfc0a48f7",
+    "set_sha256": "59599c404789e681cc3bdd15140a0e077efc5b2de0eb1308d166f330e61aaa88",
     "machine": "Linux x86_64 developer container, Python 3.13 (not the target Mac)",
     "model": "scripted deterministic stub (not a real model)",
     "answer_pass_rate": 1.0,
@@ -11,8 +11,8 @@
     "scope": "pipeline behaviour on the synthetic set with the scripted model; enforced by tests/test_thresholds.py in CI",
     "answer_pass_rate_min": 1.0,
     "category_pass_rate_min": {"abstention": 1.0, "answerable": 1.0, "citation": 1.0, "contradictory": 1.0, "cross_domain": 1.0, "hallucination": 1.0, "injection": 1.0, "stale": 1.0},
-    "retrieval_recall_min_by_script": {"latin": 1.0, "cyrillic": 1.0, "devanagari": 1.0},
-    "retrieval_known_gaps": ["han_kana (ja-total): lexical retrieval cannot segment unspaced scripts; recorded, excluded from the threshold"],
+    "retrieval_recall_min_by_script": {"latin": 1.0, "cyrillic": 1.0, "devanagari": 1.0, "han_kana": 1.0},
+    "retrieval_known_gaps": [],
     "failed_cases_max": 0,
     "cross_domain_leakage_max": 0,
     "overhead_p95_ms_max": {"policy_decide": 1.0, "task_submit_and_run_with_stubs": 250.0, "api_signed_version_roundtrip": 20.0},
