@@ -167,3 +167,18 @@ def test_a_figure_written_straight_after_japanese_text_is_checked():
     assert unproven_figures("合計金額は12,800円です。", ["合計金額は１２，８００円です。"]) == []  # full-width digits and comma
     assert unproven_figures("合計金額は12,900円です。", ["合計金額は１２，８００円です。"]) == [12900.0]
     assert unproven_figures("Invoice ACME-2041 totals 1250.50", ["ACME-2041: 1250.50"]) == []  # an identifier's number is still compared
+
+
+def test_an_amount_whose_integer_part_looks_like_a_year_is_still_checked():
+    """UC-L22 (review 6098896232): year-like text was removed before the reply was split into numbers, so 2026.50 lost its integer part and a wrong
+    amount near that boundary escaped. Years and dates are now judged on the whole token: 2026.50, 2.026,50 and a 19xx/20xx with a currency beside
+    it are amounts; a bare year, an ISO date and a dotted date are not figures."""
+    from kit.audit import unproven_figures
+
+    assert unproven_figures("The total is 2026.50 euro.", ["The total is 2026.50 euro."]) == []
+    assert unproven_figures("The total is 2026.51 euro.", ["The total is 2026.50 euro."]) == [2026.51]
+    assert unproven_figures("Het totaal is 2.026,90 euro.", ["Het totaal is 2.026,50 euro."]) == [2026.9]
+    assert unproven_figures("You paid €2026 in rent.", ["rent 2025.00"]) == [2026.0] and unproven_figures("You paid 2026 euro.", ["rent 2026"]) == []
+    assert unproven_figures("Paid 1999.00 on 2026-10-05.", ["amount 1999.00 date 2026-10-05"]) == []
+    assert unproven_figures("Paid 1999.01 on 2026-10-05.", ["amount 1999.00 date 2026-10-05"]) == [1999.01]
+    assert unproven_figures("In 2026 you spent 850.00, due 14.03.2027.", ["spent 850.00"]) == []  # a bare year and a dotted date are dates

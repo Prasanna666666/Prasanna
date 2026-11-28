@@ -14,7 +14,7 @@ sys.path.insert(0, str(EVALS))
 
 import harness  # noqa: E402
 
-SET_SHA256 = "ba9408b9758ef206f166b3cfc04d26298b07c6006286a1ed6fe050c5978e13af"
+SET_SHA256 = "bb2984d427c1ecf44d7b3fefa000680ea2cdd350f9b4c3d447895a5f51c5b292"
 REQUIRED = {"answerable", "abstention", "contradictory", "stale", "hallucination", "citation", "injection", "cross_domain"}
 
 
@@ -24,7 +24,7 @@ def report() -> dict:
 
 
 def test_the_set_is_locked_so_a_change_must_be_a_new_version():
-    assert harness.set_sha256() == SET_SHA256 and json.loads(harness.SET_FILE.read_text())["version"] == "3"
+    assert harness.set_sha256() == SET_SHA256 and json.loads(harness.SET_FILE.read_text())["version"] == "4"
 
 
 def test_every_case_behaves_as_specified_through_the_real_pipeline(report):
@@ -55,7 +55,7 @@ def test_the_report_states_what_it_does_not_measure(report):
 
 def test_injection_hallucination_wrong_quote_and_stale_are_caught_not_presented_as_grounded(report):
     # the outcomes are checked by the cases themselves; here we pin the totals so a weakened check cannot go unnoticed
-    assert report["answer_quality"]["outcomes"] == {"grounded": 13, "no_evidence": 0, "ungrounded": 6, "rejected": 1}
+    assert report["answer_quality"]["outcomes"] == {"grounded": 14, "no_evidence": 0, "ungrounded": 7, "rejected": 1}
 
 
 CASES = {case["id"]: case for case in json.loads(harness.SET_FILE.read_text(encoding="utf-8"))["cases"]}
@@ -84,3 +84,11 @@ def test_a_figure_in_a_decimal_comma_or_unspaced_language_is_checked_exactly(rep
     assert CASES["nl-cent-off"]["expect"] == {"outcome": "ungrounded", "cited": ["factuur_nl.txt"], "unproven_figures": [480.99]}
     assert CASES["ja-wrong-figure"]["expect"]["unproven_figures"] == [9999.0] and CASES["hi-lakh"]["expect"]["outcome"] == "grounded"
     assert not {row["id"] for row in report["failed_cases"]} & {"nl-cent-off", "ja-wrong-figure", "hi-lakh"}
+
+
+def test_an_amount_whose_integer_part_looks_like_a_year_is_checked_through_the_pipeline(report):
+    """UC-L22 (review 6098896232): 2026.50 is an amount, not a year. Cited correctly it is grounded; one cent off it is caught as unproven (before
+    the fix the year-like integer part was removed and 2026.51 passed as grounded)."""
+    assert CASES["year-like-amount"]["expect"]["outcome"] == "grounded"
+    assert CASES["year-like-amount-off"]["expect"] == {"outcome": "ungrounded", "cited": ["invoice_year_en.txt"], "unproven_figures": [2026.51]}
+    assert not {row["id"] for row in report["failed_cases"]} & {"year-like-amount", "year-like-amount-off"}

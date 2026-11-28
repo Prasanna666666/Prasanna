@@ -53,15 +53,33 @@ def _readings(num: str) -> frozenset[Decimal] | None:
     return frozenset(values) or None
 
 
-def _tokens(text: str, brackets: bool) -> list[tuple[str, frozenset[Decimal] | None]]:
-    """(the number as written, its signed readings) for every numeric token. `brackets`: an accounting bracket, (250.00), means negative."""
+def _tokens(text: str, brackets: bool) -> list[tuple[str, frozenset[Decimal] | None, int, int]]:
+    """(the number as written, its signed readings, start, end) for every numeric token. `brackets`: an accounting bracket, (250.00), means negative."""
     out = []
-    for m in _TOKEN.finditer(_ascii(text)):
+    for m in _TOKEN.finditer(text):
         num = m.group("num")
         negative = bool(m.group("sign")) or (brackets and bool(m.group("open")) and bool(m.group("close")))
         readings = _readings(num)
-        out.append((("-" if negative else "") + num, None if readings is None else frozenset(-v if negative else v for v in readings)))
+        signed = None if readings is None else frozenset(-v if negative else v for v in readings)
+        out.append((("-" if negative else "") + num, signed, m.start("num"), m.end("num")))
     return out
+
+
+_YEAR = re.compile(r"(?:19|20)\d{2}")
+_DOTTED_DATE = re.compile(r"\d{1,2}[.]\d{1,2}[.](?:19|20)\d{2}")
+# A currency next to a bare 19xx/20xx makes it an amount, not a year (€2026, 2026 euro, ₹2026, 2026円).
+_CURRENCY = re.compile(r"[€$£¥₹₽円元]|\b(?:eur|euro|euros|usd|gbp|jpy|inr|rub|chf|dollars?|pounds?|yen|rupees?|евро|рублей|руб|रुपये)\b", re.IGNORECASE)
+_NEAR = 12
+
+
+def _is_date(written: str, text: str, start: int, end: int) -> bool:
+    """A calendar year or date, judged on the whole token: a bare 19xx/20xx with no currency beside it, or a dotted day.month.year. A token with a
+    decimal or grouping part (2026.50, 2.026,50) is an amount and is always checked."""
+    if _DOTTED_DATE.fullmatch(written):
+        return True
+    if not _YEAR.fullmatch(written):
+        return False
+    return not (_CURRENCY.search(text[max(0, start - _NEAR) : start]) or _CURRENCY.search(text[end : end + _NEAR]))
 
 
 def unproven_figures(reply: str, tool_outputs: list[str]) -> list[float]:
@@ -70,13 +88,15 @@ def unproven_figures(reply: str, tool_outputs: list[str]) -> list[float]:
     480,00) and an ambiguous 1,250 is proven by 1,250 but not by 1.25 or 1250 alone. Empty if the agent used no tool: it then states no data of yours."""
     if not tool_outputs:
         return []
-    proven = {(readings if readings is not None else written) for out in tool_outputs for written, readings in _tokens(out, brackets=True)}
-    text = re.sub(r"\b(?:19|20)\d{2}(?:-\d{2}){0,2}\b|\b\d{1,2}[./]\d{1,2}[./](?:19|20)\d{2}\b", " ", _ascii(reply))
+    proven = {(readings if readings is not None else written) for out in tool_outputs for written, readings, _s, _e in _tokens(_ascii(out), brackets=True)}
+    text = _ascii(reply)
     unproven: set[float] = set()
-    for written, readings in _tokens(text, brackets=False):
+    for written, readings, start, end in _tokens(text, brackets=False):
         digits = sum(ch.isdigit() for ch in written)
         if digits < _SMALL and written.lstrip("-").isdigit():
             continue  # a small count (3 payments, 30 days) is not a figure
+        if _is_date(written.lstrip("-"), text, start, end):
+            continue  # a year or a date: the date check (answer.py) covers dates
         if (readings if readings is not None else written) not in proven:
             unproven.add(float(_first(written, readings)))
     return sorted(unproven)

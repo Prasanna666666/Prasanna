@@ -37,7 +37,7 @@ from atlas_core.service import Deps, TaskService  # noqa: E402
 from atlas_core.tasks import TaskStore  # noqa: E402
 from atlas_core.values import LanguageIn  # noqa: E402
 
-SET_FILE = HERE / "set_v3.json"  # v3 (UC-L22): mixed-language documents and verbatim names and units; v2 made ja-total answerable (bigram index)
+SET_FILE = HERE / "set_v4.json"  # v4: a year-like amount; v3 (UC-L22): mixed-language documents and verbatim names and units; v2: bigram index
 TOP_K = 8
 
 
