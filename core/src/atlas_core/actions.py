@@ -190,6 +190,9 @@ class IdempotencyFile:
         for line in self._path.read_text(encoding="utf-8").splitlines():
             try:
                 row = json.loads(line)
+                if row["status"] == "forgotten":  # an intent whose handler proved it did nothing: the key may be tried again
+                    seen.pop((row["name"], row["key"]), None)
+                    continue
                 seen[(row["name"], row["key"])] = (row["digest"], Outcome(row["status"], row.get("code", ""), row.get("action_id")))
             except (ValueError, KeyError, TypeError):
                 continue  # a torn last line is skipped; every complete line before it still counts
@@ -378,13 +381,20 @@ class ActionGateway:
                 self.prompts += 1
                 self._log(name, "needs_approval", f"category_{category}", digest, pending.approval_id)
                 return Outcome("needs_approval", f"category_{category}", approval_id=pending.approval_id, category=category, exact_payload=dict(payload))
+            external = spec.connector is not None or category is not None  # an effect outside Atlas's own transactional stores
+            if external:
+                # ATLAS-ACT-019: the intent is on disk BEFORE the effect, so a crash between the effect and its outcome is answered
+                # `outcome_unknown` on a retry with the same key after the restart, and the effect never runs twice
+                self._remember(name, idempotency_key, digest, Outcome("failed", "outcome_unknown"))
             try:
                 result = spec.handler(dict(payload))
             except ActionNotPerformed:
+                if external:
+                    self._forget(name, idempotency_key, digest)
                 self._log(name, "failed", "handler_failed", digest, approval_id)
                 return Outcome("failed", "handler_failed")  # proven to have done nothing: the same key may be tried again
             except Exception:  # noqa: BLE001  (a handler's failure is a code; its text could carry content)
-                if spec.connector is not None:
+                if external:
                     return self._ambiguous(name, idempotency_key, digest, approval_id)
                 self._log(name, "failed", "handler_failed", digest, approval_id)
                 return Outcome("failed", "handler_failed")
@@ -401,6 +411,11 @@ class ActionGateway:
         self._idem[(name, key)] = (digest, outcome)
         if self._idem_file is not None:
             self._idem_file.append(name, key, digest, outcome)
+
+    def _forget(self, name: str, key: str, digest: str) -> None:
+        self._idem.pop((name, key), None)
+        if self._idem_file is not None:
+            self._idem_file.append(name, key, digest, Outcome("forgotten"))
 
     def _ambiguous(self, name: str, key: str, digest: str, approval_id: str | None) -> Outcome:
         """An external action failed without proof that it did nothing. It is recorded under its key, so a retry returns this answer instead of running the handler again; the owner reconciles with the provider."""

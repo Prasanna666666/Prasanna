@@ -481,3 +481,68 @@ def test_an_undo_that_fails_inside_its_transaction_changes_nothing_and_can_be_re
         assert gateway.undo(created.action_id).code == "undone" and gateway.undo(created.action_id).code == "already_undone"
     finally:
         store.close()
+
+
+_KILLED_AFTER_EFFECT = """
+import os, sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[2])
+from atlas_core.actions import ActionGateway, ActionSpec, ApprovalFile, IdempotencyFile
+folder = Path(sys.argv[1])
+def send(payload):
+    with open(folder / "sent.log", "a") as handle:
+        handle.write("sent\\\\n")  # the external effect happened
+    os._exit(9)  # and the process dies before its outcome is recorded
+g = ActionGateway(idempotency=IdempotencyFile(folder / "idem.jsonl"), approvals=ApprovalFile(folder / "approvals.jsonl"))
+g.register(ActionSpec("mail.send", frozenset({"external_send"}), send))
+pending = g.propose("mail.send", {"to": "x@example.invalid"}, origin="owner_request", idempotency_key="k1")
+g.grant(pending.approval_id, by_owner=True)
+g.propose("mail.send", {"to": "x@example.invalid"}, origin="owner_request", idempotency_key="k1", approval_id=pending.approval_id)
+"""
+
+
+def test_an_external_effect_interrupted_before_its_outcome_is_never_run_again_with_the_same_key(tmp_path):
+    """ATLAS-ACT-019 (durable intent before the effect): the process is killed after an approved external send happened and before its outcome
+    was written. After the restart a retry with the same key is answered `outcome_unknown` from the intent record, and the send does not run a
+    second time."""
+    import subprocess
+    import sys
+    from pathlib import Path
+
+    from atlas_core.actions import ApprovalFile, IdempotencyFile
+
+    done = subprocess.run([sys.executable, "-c", _KILLED_AFTER_EFFECT, str(tmp_path), str(Path(__file__).parent)], check=False, capture_output=True)
+    assert done.returncode == 9, done.stderr
+    runs: list[int] = []
+    g = ActionGateway(idempotency=IdempotencyFile(tmp_path / "idem.jsonl"), approvals=ApprovalFile(tmp_path / "approvals.jsonl"))
+    g.register(ActionSpec("mail.send", frozenset({"external_send"}), lambda p: runs.append(1) or {"sent": True}))
+    again = g.propose("mail.send", {"to": "x@example.invalid"}, origin="owner_request", idempotency_key="k1")
+    assert (again.status, again.code) == ("failed", "outcome_unknown") and runs == []
+    assert (tmp_path / "sent.log").read_text().count("sent") == 1
+
+
+def test_an_external_action_proven_not_performed_clears_its_intent_so_the_key_may_be_retried(tmp_path):
+    """The intent never traps an action that provably did nothing: ActionNotPerformed clears it (durably), and the same key runs again."""
+    from atlas_core.actions import ActionNotPerformed, IdempotencyFile
+
+    attempts: list[int] = []
+
+    def flaky(payload):
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise ActionNotPerformed
+        return {"sent": True}
+
+    def gateway():
+        g = ActionGateway(idempotency=IdempotencyFile(tmp_path / "idem.jsonl"))
+        g.register(ActionSpec("shop.check", frozenset({"external_send"}), flaky, connector="shop"))
+        return g
+
+    g = gateway()
+    pending = g.propose("shop.check", {"q": 1}, origin="owner_request", idempotency_key="k")
+    g.grant(pending.approval_id, by_owner=True)
+    assert g.propose("shop.check", {"q": 1}, origin="owner_request", idempotency_key="k", approval_id=pending.approval_id).code == "handler_failed"
+    g2 = gateway()  # a restart: the cleared intent does not come back
+    pending = g2.propose("shop.check", {"q": 1}, origin="owner_request", idempotency_key="k")
+    g2.grant(pending.approval_id, by_owner=True)
+    assert g2.propose("shop.check", {"q": 1}, origin="owner_request", idempotency_key="k", approval_id=pending.approval_id).status == "done"
