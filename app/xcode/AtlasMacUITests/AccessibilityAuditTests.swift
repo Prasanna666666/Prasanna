@@ -53,6 +53,7 @@ final class AccessibilityAuditTests: XCTestCase {
             app.activate()
             let paragraph = app.staticTexts["Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer."]
             XCTAssertTrue(paragraph.waitForExistence(timeout: 30), "the probe window shows the paragraph")
+            print("PROBE KEY [\(appearance)]: \(Self.waitForKey(stateFile))")  // audited only once the app reports this window key and visible
             states(app, paragraph, "PROBE [\(appearance)]", stateFile)
             var flagged: [String] = []
             try app.performAccessibilityAudit { issue in
@@ -66,6 +67,49 @@ final class AccessibilityAuditTests: XCTestCase {
             states(app, paragraph, "PROBE AFTER AUDIT [\(appearance)]", stateFile)
             app.terminate()
         }
+    }
+
+    /// Waits (up to 10 s) until the app's latest recorded state has its window key and unoccluded; returns whether it got there.
+    static func waitForKey(_ stateFile: String) -> Bool {
+        let deadline = Date().addingTimeInterval(10)
+        repeat {
+            let line = lastState(stateFile)
+            if line.contains("key=true") && line.contains("visibleOcclusion=true") { return true }
+            Thread.sleep(forTimeInterval: 0.2)
+        } while Date() < deadline
+        return false
+    }
+
+    /// MAC-08 diagnosis (architect review 6095905696, option i): the real first-run screen in Dark with the system window background as the only
+    /// change, in the same controlled key, visible state. Records the audit's findings without gating; the gate stays the two audits above.
+    func testDiagnosticTheRealDarkFirstRunScreenOnTheSystemBackground() throws {
+        let app = XCUIApplication()
+        if let python = ProcessInfo.processInfo.environment["ATLAS_CI_PYTHON"] { app.launchEnvironment["ATLAS_CI_PYTHON"] = python }
+        let stateFile = NSTemporaryDirectory() + "atlas-sysbg-state.txt"
+        try? FileManager.default.removeItem(atPath: stateFile)
+        app.launchEnvironment["ATLAS_UI_TEST_APPEARANCE"] = "Dark"
+        app.launchEnvironment["ATLAS_UI_TEST_STATE_FILE"] = stateFile
+        app.launchEnvironment["ATLAS_UI_TEST_KEY_WINDOW"] = "1"
+        app.launchEnvironment["ATLAS_UI_TEST_SYSTEM_BACKGROUND"] = "1"
+        app.launch()
+        app.activate()
+        guard app.staticTexts["Welcome to Atlas"].waitForExistence(timeout: 60) else {
+            print("SYSBG: the first-run screen did not appear (an earlier run's owner may exist); nothing to compare")
+            return
+        }
+        let paragraph = app.staticTexts["Atlas answers from your own documents and mail, on this Mac. Nothing leaves your computer."]
+        print("SYSBG KEY: \(Self.waitForKey(stateFile)) | \(Self.lastState(stateFile))")
+        var flagged: [String] = []
+        try app.performAccessibilityAudit { issue in
+            let line = "SYSBG AUDIT ISSUE [Dark]: \(issue.auditType) | \(issue.compactDescription) | \(issue.element?.debugDescription ?? "no element")"
+            print(line)
+            flagged.append(line)
+            if issue.auditType == .contrast, let e = issue.element { print("SYSBG CONTRAST PIXELS [Dark]: \(Self.measuredContrast(e.screenshot().image))") }
+            return true  // diagnostic: recorded, never gating
+        }
+        let paragraphFlagged = flagged.contains { $0.contains("Contrast") && $0.contains("Atlas answers from") }
+        print("SYSBG RESULT [Dark]: paragraph \(paragraphFlagged ? "flagged" : "not flagged"); \(flagged.count) finding(s); paragraph exists=\(paragraph.exists)")
+        app.terminate()
     }
 
     /// The app's latest recorded state line (appearance, active, key, main, occlusion), or why there is none.
@@ -117,6 +161,7 @@ final class AccessibilityAuditTests: XCTestCase {
         states(app, paragraph, "AUDIT STATE [\(appearance)]", stateFile)
         let recorded = (try? String(contentsOfFile: stateFile, encoding: .utf8)) ?? ""
         print("AUDIT WINDOW KEY [\(appearance)]: \(recorded.split(separator: "\n").last.map { $0.contains("key=true") } ?? false)")  // recorded, not asserted: the gate stays the audit
+        print("AUDIT KEY [\(appearance)]: \(Self.waitForKey(stateFile))")
         print("AUDIT STARTS [\(appearance)]: \(Self.lastState(stateFile))")  // the app's own state immediately before the audit
         try app.performAccessibilityAudit { issue in
             print("AT FINDING [\(appearance)] APP: \(Self.lastState(stateFile)) | XCUI window.enabled=\(app.windows.firstMatch.isEnabled)")

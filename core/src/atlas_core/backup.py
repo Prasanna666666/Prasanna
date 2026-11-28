@@ -39,7 +39,7 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.scrypt import Scrypt
 from kit.db import EncryptionError, connect
 
-from .keyrestore import KeyCommitIncomplete
+from .keyrestore import FOLDER_LOCK, KeyCommitIncomplete, KeyRestoreError, reserve
 
 FORMAT = 1
 MIN_PASSPHRASE = 12
@@ -415,7 +415,7 @@ def restore_backup(
     result = verify_backup(folder, passphrase)
     if not result.ok:
         raise BackupError(result.problems[0])
-    if target.is_symlink() or (target.exists() and (not target.is_dir() or any(target.iterdir()))):
+    if target.is_symlink() or (target.exists() and (not target.is_dir() or _has_entries(target))):
         raise BackupError("target_not_empty")  # a link is never a restore target: writes would land wherever it points
     manifest = _load_manifest(folder)
     assert manifest is not None  # verified above
@@ -424,6 +424,34 @@ def restore_backup(
     target.mkdir(parents=True, exist_ok=True, mode=0o700)
     if target.is_symlink():  # replaced between the check and the create
         raise BackupError("target_not_empty")
+    lock_made = not (target / FOLDER_LOCK).exists()
+    try:
+        reservation = reserve(target)  # the target's own folder lock, held until the keys are active: no Core can start on a partial restore
+    except KeyRestoreError:
+        raise BackupError("target_in_use") from None
+    kept = False
+    try:
+        if _has_entries(target):  # written by a Core that ran between the first check and the reservation
+            raise BackupError("target_not_empty")
+        report = _restore_into(folder, target, manifest, bundle, created_target, provision_keys)
+        kept = True
+        return report
+    except KeyCommitIncomplete:
+        kept = True  # the restored files stay for recovery to finish
+        raise
+    finally:
+        if not kept and lock_made and target.exists():
+            (target / FOLDER_LOCK).unlink(missing_ok=True)  # a failed restore leaves an existing folder as it found it
+        os.close(reservation)
+
+
+def _has_entries(folder: Path) -> bool:
+    return any(entry.name != FOLDER_LOCK for entry in folder.iterdir())
+
+
+def _restore_into(
+    folder: Path, target: Path, manifest: dict[str, Any], bundle: Mapping[str, str], created_target: bool, provision_keys: Callable[[Mapping[str, str]], None]
+) -> RestoreReport:
     made: list[Path] = []
     report = RestoreReport(target)
     try:

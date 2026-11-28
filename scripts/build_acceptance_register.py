@@ -22,17 +22,18 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "core" / "docs" / "acceptance_register.json"
-CI_REVISION = "a3c7f7d009ff70d7feda917d5d4a3ea9dc030e71"  # the scored software revision: the reviewed head whose hosted CI is cited below
-CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46095345457"
+CI_REVISION = "09498515beefed3e90feac0e201722822df4a6f5"  # the scored software revision: the reviewed head whose hosted CI is cited below
+CI_RUN = "https://github.com/Prasanna666666/Prasanna/actions/runs/46105400530"
 JOBS = {
-    "core-3.11": f"{CI_RUN}/job/140825289754", "core-3.13": f"{CI_RUN}/job/140825289525", "kit": f"{CI_RUN}/job/140825289783",
-    "macos": f"{CI_RUN}/job/140825289669", "app": f"{CI_RUN}/job/140825289830", "ios": f"{CI_RUN}/job/140825289725",
+    "core-3.11": f"{CI_RUN}/job/140856913627", "core-3.13": f"{CI_RUN}/job/140856913694", "kit": f"{CI_RUN}/job/140856913438",
+    "macos": f"{CI_RUN}/job/140856913725", "app": f"{CI_RUN}/job/140856913737", "ios": f"{CI_RUN}/job/140856913680",
 }  # fmt: skip
 MAC_REVIEW = ("95f67f41fd1a028336813ccd90383fb3c9cdde97", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6092414795", "6092414795")
 V03_REVIEW = ("2815257f391f5fffa6168ac1ff00bca41a8bc1dc", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093596586", "6093596586")
 V04_REVIEW = ("6574c2cb8dd23c9d1a3a7084c6aa1e207756900c", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094252873", "6094252873")
 V05_REVIEW = ("e23b04bff48c2c3d79976b50921f86d91a3c46ce", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6094872675", "6094872675")
 V06_REVIEW = ("a3c7f7d009ff70d7feda917d5d4a3ea9dc030e71", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095269004", "6095269004")
+V07_REVIEW = ("09498515beefed3e90feac0e201722822df4a6f5", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6095905696", "6095905696")
 V02_REVIEW = ("8b23cc66705a5b3c5eddac657cf774fa35a43594", "https://github.com/Prasanna666666/Prasanna/pull/8#pullrequestreview-6093128990", "6093128990")
 OWNERS = {"implementation": "Claude", "verdict": "Codex", "sign_off": "Owner"}
 NO_CHECKPOINT = "None defined: scored 0 or 1"
@@ -273,6 +274,7 @@ V03_CHANGES = [
     "Scored revision moved to 6574c2c and its PR CI run 46078831844. Verdicts at 6574c2c (review 6094252873) mirrored: MAC-13 pass, MAC-15 pass, MAC-19 pass, MAC-17 fail (add-only checkpoint kept), MAC-06 fail, MAC-08 fail.",
     "Scored revision moved to e23b04b and its PR CI run 46086267907. Verdicts at e23b04b (review 6094872675) mirrored: MAC-17 fail (ownership across data folders; add-only checkpoint kept), MAC-08 fail (investigate the Disabled window state first), MAC-06 fail.",
     "Scored revision moved to a3c7f7d and its PR CI run 46095345457. Verdicts at a3c7f7d (review 6095269004) mirrored: MAC-17 fail (serialize recovery with live restore, enforce ownership at startup, preserve data on an unconfirmed commit point; account-wide design accepted), MAC-08 fail (make the window key first), MAC-06 fail.",
+    "Scored revision moved to 0949851 and its PR CI run 46105400530. Verdicts at 0949851 (review 6095905696) mirrored: MAC-17 fail (key layer fixed; the startup store-open window and restore copy/activation need one ordering), MAC-08 fail (choose (i): system-background comparison and a probe in the same foreground state), MAC-06 fail.",
 ]
 
 
@@ -379,6 +381,15 @@ def apply_verdicts_a3c7f7d(criteria: list[dict]) -> list[dict]:
     by["MAC-17"]["review"] = _verdict(V06_REVIEW, "fail", note="account-wide design accepted; recovery must serialize with a live restore, startup must enforce the recorded owner, and an unconfirmed commit point must keep the target")
     by["MAC-08"]["review"] = _verdict(V06_REVIEW, "fail", note="make the intended window key and front, capture key/occlusion/appearance before the audit and at each finding; keep the gate")
     by["MAC-06"]["review"] = _verdict(V06_REVIEW, "fail", note="the required Mac UI job failed")
+    return apply_verdicts_0949851(criteria)
+
+
+def apply_verdicts_0949851(criteria: list[dict]) -> list[dict]:
+    """The architect's review of 0949851 (review 6095905696): its explicit criterion verdicts."""
+    by = {c["id"]: c for c in criteria}
+    by["MAC-17"]["review"] = _verdict(V07_REVIEW, "fail", note="key layer fixed; startup releases the guard before its stores open and restore copies before the guard: one ordering of target reservation, key ownership and first store open is needed")
+    by["MAC-08"]["review"] = _verdict(V07_REVIEW, "fail", note="window state controlled, findings persist; compare the real Dark screen on the system background and repeat the probe in the same foreground state")
+    by["MAC-06"]["review"] = _verdict(V07_REVIEW, "fail", note="a required hosted check remains red")
     return criteria
 
 

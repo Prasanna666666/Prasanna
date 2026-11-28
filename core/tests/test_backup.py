@@ -535,3 +535,77 @@ def test_a_restore_interrupted_after_its_commit_point_is_completed_and_the_insta
     assert keyrestore.recover(items) == "completed"
     assert items.store["atlas-task-store"] == DB_KEYS["tasks.db"] and items.store["atlas-designation-store"] == DB_KEYS["designation.db"]
     assert _reopen(target, items.store["atlas-task-store"], task_id) == "completed"
+
+
+def test_a_started_core_between_its_key_read_and_its_first_store_keeps_its_keys_from_any_restore(world, tmp_path):
+    """MAC-17, the production startup boundary: a Core takes its folder lock (app.acquire_data_dir) before reading its keys and holds it for
+    its life. Just after its key read, before any store exists, its folder is still empty, yet it is in use: a restore into another folder is
+    refused before any file is copied or key written, and another folder's start cannot take the keys over. Once that Core is gone and its
+    folder still empty, a new folder may take over."""
+    from test_maintenance import _Items
+
+    from atlas_core import keyrestore
+    from atlas_core.app import acquire_data_dir
+    from atlas_core.maintenance import provision_staged
+
+    a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    starting, target, other = tmp_path / "starting", tmp_path / "restored", tmp_path / "other"
+    items = _Items({"atlas-task-store": "the-starting-core-key"})
+    held = acquire_data_dir(starting)  # what serve does first
+    try:
+        keyrestore.open_keys(items, starting, None, lambda: items.read("atlas-task-store"))  # its key read; no store opened yet
+        assert sorted(p.name for p in starting.iterdir()) == ["core.lock"]
+        before = dict(items.store)
+        with pytest.raises(keyrestore.KeyRestoreError, match="another_installation"):
+            restore_backup(folder, PASS, target, provision_keys=lambda bundle: provision_staged(items, bundle, target))
+        assert items.store == before and not target.exists()
+        other.mkdir()
+        with pytest.raises(keyrestore.KeyRestoreError, match="not_owner"):
+            keyrestore.open_keys(items, other, None, lambda: None)
+    finally:
+        os.close(held)
+    keyrestore.open_keys(items, other, None, lambda: None)  # the starting Core is gone and its folder holds nothing: the new folder takes over
+    assert items.store["atlas-installation"] == str(other.resolve())
+
+
+def test_no_core_can_start_on_a_partly_restored_folder(world, tmp_path):
+    """MAC-17: the restore reserves its target's folder lock before copying the first file and keeps it until the keys are active. A real Core
+    started against the target meanwhile (after the files are copied, before the keys are installed) exits busy without touching it; once the
+    restore has finished, the reservation is gone."""
+    import subprocess
+    import sys
+
+    from test_maintenance import GONE, _Items
+
+    from atlas_core.app import CoreAlreadyRunning, acquire_data_dir
+    from atlas_core.maintenance import provision_staged
+    from atlas_core.serve import EXIT_BUSY
+
+    a_core_with_a_finished_task(world)
+    folder = make_backup(world, tmp_path)
+    target, items, seen = tmp_path / "restored", _Items({"atlas-installation": GONE}), {}
+    env = {"PATH": os.environ["PATH"], "PYTHONPATH": os.pathsep.join(p for p in sys.path if p)}
+
+    def provision(bundle):
+        seen["files"] = sorted(p.name for p in target.iterdir())
+        with pytest.raises(CoreAlreadyRunning):
+            acquire_data_dir(target)
+        start = [
+            sys.executable,
+            "-m",
+            "atlas_core.serve",
+            "--data-dir",
+            str(target),
+            "--socket",
+            str(tmp_path / "s"),
+            "--config-factory",
+            "core_factory:keychain_locked",
+            "--allow-custom-factory",
+        ]
+        seen["exit"] = subprocess.run(start, input=b"a-valid-looking-code-0123456789\n", capture_output=True, timeout=30, env=env, check=False).returncode
+        provision_staged(items, bundle, target)
+
+    restore_backup(folder, PASS, target, provision_keys=provision)
+    assert "tasks.db" in seen["files"] and seen["exit"] == EXIT_BUSY
+    os.close(acquire_data_dir(target))  # released once the restore returned

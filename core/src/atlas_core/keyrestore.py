@@ -22,7 +22,9 @@ Every step that reads or changes the journal, the owner record or the live keys 
 a restore holds it from its first recovery to its last promotion, and a starting Core holds it across recovery, the ownership check and
 its key reads (`open_keys`). So a live transaction is never mistaken for an interrupted one, and two recoveries never run at once.
 A start refuses a data folder that does not own the live keys (`not_owner`) unless the recorded owner no longer holds files and this folder
-is new. When the commit point's write may have persisted but cannot be confirmed, the journal is read again under the same lock: the target's
+is new. A folder is in use while it holds files or while its folder lock is held: a starting Core takes that lock before its key read and
+keeps it for its life (so the gap between its key read and its first store is covered), and a restore holds its target's lock (`reserve`)
+from before the first file is copied until its keys are active, so no Core can start on a partly restored folder. When the commit point's write may have persisted but cannot be confirmed, the journal is read again under the same lock: the target's
 files are kept unless the journal is confirmed not to have reached the commit point.
 """
 
@@ -129,6 +131,40 @@ def _holds_files(folder: Path) -> bool:
     return folder.is_dir() and any(entry.name != FOLDER_LOCK for entry in folder.iterdir())
 
 
+def _live(folder: Path) -> bool:
+    """Whether a process holds the folder's lock: a Core that has started (it takes the lock before reading any key and keeps it for its life,
+    so this covers the window after its key read and before its stores exist) or a restore that has reserved the folder."""
+    path = folder / FOLDER_LOCK
+    try:
+        fd = os.open(path, os.O_RDWR)
+    except OSError:
+        return False
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        return True
+    finally:
+        os.close(fd)  # also releases the probe's own lock, if it got one
+    return False
+
+
+def _in_use(folder: Path) -> bool:
+    return _holds_files(folder) or _live(folder)
+
+
+def reserve(folder: Path) -> int:
+    """Take a restore target's own folder lock (the one a starting Core takes first), so no Core can start there while files are copied and the
+    keys activated. Returns the descriptor; closing it releases the reservation."""
+    folder.mkdir(parents=True, exist_ok=True, mode=0o700)
+    fd = os.open(folder / FOLDER_LOCK, os.O_RDWR | os.O_CREAT | os.O_CLOEXEC, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        os.close(fd)
+        raise KeyRestoreError("target_in_use") from None
+    return fd
+
+
 @contextmanager
 def guard(lock: Path, wait: float = LOCK_WAIT) -> Iterator[None]:
     """The account-wide, cross-process lock around every key-restore step. Released when the process ends, so a crash never leaves it held."""
@@ -159,7 +195,7 @@ def verify_owner(items: KeyItems, data_dir: Path) -> None:
         return
     if owner is None:
         raise KeyRestoreError("verify")
-    if _holds_files(Path(owner)) or _holds_files(data_dir):
+    if _in_use(Path(owner)) or _holds_files(data_dir):  # this folder's own lock is held by this start, so only its files count
         raise KeyRestoreError("not_owner")  # the keys protect another folder's files, or this folder's files are not under these keys
     items.write(OWNER_ITEM, here)
     if items.read(OWNER_ITEM) != here:
@@ -196,7 +232,7 @@ def _provision(items: KeyItems, keys: Mapping[str, str], target: Path) -> None:
     if owner is None:
         if any(items.read(live) for live in services):
             raise KeyRestoreError("owner_unknown")  # live keys whose installation is unrecorded: they may protect a working folder
-    elif Path(owner) != target and _holds_files(Path(owner)):
+    elif Path(owner) != target and _in_use(Path(owner)):
         raise KeyRestoreError("another_installation")  # replacing the keys would orphan that folder's files
     record: dict[str, Any] = {"tx": secrets.token_hex(8), "state": "staging", "target": str(target), "services": services, "promoted": []}
     items.add_if_absent(JOURNAL_ITEM, json.dumps(record, sort_keys=True))

@@ -18,12 +18,21 @@ struct RootView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Atlas")  // the audit found this outer container without a description
-        .background(Theme(scheme).background)
+        .background(rootBackground)
         .sheet(item: approvalBinding) { _ in
             if let flow = model.approval {
                 ApprovalSheet(flow: flow, approve: { Task { await model.approveCurrent() } }, decline: { model.declineCurrent() })
             }
         }
+    }
+
+    /// Atlas's own background; in Debug builds only, the UI tests can ask for the system window background instead (ATLAS_UI_TEST_SYSTEM_BACKGROUND),
+    /// to compare the audit's result on the real first-run screen with the background as the only change (architect review 6095905696, MAC-08 i).
+    private var rootBackground: Color {
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["ATLAS_UI_TEST_SYSTEM_BACKGROUND"] == "1" { return Color(nsColor: .windowBackgroundColor) }
+        #endif
+        return Theme(scheme).background
     }
 
     /// The sheet is bound to the approval's id so it appears and goes away with the approval.
