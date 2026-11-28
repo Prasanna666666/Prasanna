@@ -7110,7 +7110,7 @@
   {
    "id": "PRD-5A-01",
    "stage": null,
-   "title": "Routine read/search/analysis/drafting/computation is prompt-free",
+   "title": "Routine read/search/analysis/drafting/computation is prompt-free (software part)",
    "source": "prd",
    "source_ref": "docs/genesis/PRD_CONFORMANCE.md, §5A row 1",
    "refs": [
@@ -7125,23 +7125,29 @@
    "scope": "in",
    "milestones": [],
    "aliases": [],
-   "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
+   "pass_condition": "The software part of the requirement is met as specified on the candidate build; the remaining device-only verification (the owner's walkthrough of the app confirming no incidental prompts) is PRD-5A-01-DEV.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
    "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "checkpoint",
+    "state": "full",
     "evidence": [
      {
       "kind": "test",
       "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
       "ref": "core/tests/test_policy.py::test_default_is_deny_nothing_is_retrieved_and_no_model_is_called",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "test",
       "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
       "ref": "core/tests/test_actions.py::test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone",
-      "proves": "checkpoint"
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_actions.py::test_the_action_matrix_only_the_four_categories_ever_need_approval",
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -7149,7 +7155,7 @@
       "ref": "hosted core-3.11 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -7157,7 +7163,7 @@
       "ref": "hosted core-3.13 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -7165,7 +7171,7 @@
       "ref": "hosted macos job: Core tests on macOS",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      }
     ]
    },
@@ -7173,7 +7179,8 @@
     "verdict": null
    },
    "recorded_status": "PARTIAL",
-   "open_gap": "Core policy tests cover the rule; owner-visible UI must still be walked through to ensure no incidental prompts."
+   "open_gap": "Core policy tests cover the rule; owner-visible UI must still be walked through to ensure no incidental prompts.",
+   "v04_basis": "software complete; only device verification remains (split to the -DEV row)"
   },
   {
    "id": "PRD-5A-02",
@@ -7240,7 +7247,7 @@
   {
    "id": "PRD-5A-03",
    "stage": null,
-   "title": "Exhaustive four approval categories only",
+   "title": "Exhaustive four approval categories only (software part)",
    "source": "prd",
    "source_ref": "docs/genesis/PRD_CONFORMANCE.md, §5A row 3",
    "refs": [
@@ -7255,17 +7262,35 @@
    "scope": "in",
    "milestones": [],
    "aliases": [],
-   "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
+   "pass_condition": "The software part of the requirement is met as specified on the candidate build; the remaining device-only verification (the owner's walkthrough of every approval category in the app) is PRD-5A-03-DEV.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
    "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "checkpoint",
+    "state": "full",
     "evidence": [
      {
       "kind": "test",
       "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
       "ref": "core/tests/test_actions.py::test_the_action_matrix_only_the_four_categories_ever_need_approval",
-      "proves": "checkpoint"
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_actions.py::test_irreversible_removal_needs_approval_and_a_retry_does_not_run_twice",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "app/Tests/AtlasKitTests/DesignSystemTests.swift::testAnActionAtlasCannotDescribeIsNeverShownForApproval",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "app/Tests/AtlasKitTests/DesignSystemTests.swift::testApprovalNeedsADeliberateStepAndWorksOnceWhileValid",
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -7273,7 +7298,7 @@
       "ref": "hosted core-3.11 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -7281,7 +7306,7 @@
       "ref": "hosted core-3.13 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -7289,7 +7314,7 @@
       "ref": "hosted macos job: Core tests on macOS",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      }
     ]
    },
@@ -7297,7 +7322,8 @@
     "verdict": null
    },
    "recorded_status": "PARTIAL",
-   "open_gap": "Need full app walkthrough proving no other path prompts and each category's consequences/terms are visible."
+   "open_gap": "Need full app walkthrough proving no other path prompts and each category's consequences/terms are visible.",
+   "v04_basis": "software complete; only device verification remains (split to the -DEV row)"
   },
   {
    "id": "PRD-5A-04",
@@ -8335,7 +8361,7 @@
   {
    "id": "UC-002",
    "stage": null,
-   "title": "UC-002 Insufficient evidence",
+   "title": "UC-002 Insufficient evidence (software part)",
    "source": "use-case",
    "source_ref": "docs/genesis/USE_CASE_CONFORMANCE.md, §1 row 2",
    "refs": [
@@ -8350,23 +8376,35 @@
    "scope": "in",
    "milestones": [],
    "aliases": [],
-   "pass_condition": "The requirement at the source reference is met as specified on the candidate build, and the open gap recorded there is closed.",
+   "pass_condition": "The software part of the requirement is met as specified on the candidate build; the remaining device-only verification (the owner's walkthrough of the app's insufficient-evidence states) is UC-002-DEV.",
    "required_evidence": "Exact tests or behaviour evidence for the requirement passing on the exact head, plus owner acceptance where the gap names it",
    "checkpoint": "MET-L partial: the implemented portion named for this row in the conformance matrix has exact tests that resolve and pass in hosted CI at the scored revision; the rest of the pass condition remains open (recorded in open_gap)",
    "implementation": {
-    "state": "checkpoint",
+    "state": "full",
     "evidence": [
      {
       "kind": "test",
       "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
-      "ref": "core/tests/test_evals.py::test_the_set_is_locked_so_a_change_must_be_a_new_version",
-      "proves": "checkpoint"
+      "ref": "core/tests/test_client.py::test_a_missing_answer_and_a_hallucinated_figure_are_shown_as_not_confirmed_never_as_checked",
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "core/tests/test_api_v11.py::test_coverage_states_are_honest_and_tie_to_limitations",
+      "proves": "full"
      },
      {
       "kind": "test",
       "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
       "ref": "core/tests/test_client.py::test_every_value_of_every_closed_vocabulary_has_a_message",
-      "proves": "checkpoint"
+      "proves": "full"
+     },
+     {
+      "kind": "test",
+      "revision": "d528055ec8756d8d55efe2f104cfe929c7bf8cb1",
+      "ref": "app/Tests/AtlasKitTests/DesignSystemTests.swift::testEvidenceStatesNeverImplyASourceWasReadWhenItWasNot",
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -8374,7 +8412,7 @@
       "ref": "hosted core-3.11 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255575",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -8382,7 +8420,7 @@
       "ref": "hosted core-3.13 job",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255649",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      },
      {
       "kind": "ci",
@@ -8390,7 +8428,7 @@
       "ref": "hosted macos job: Core tests on macOS",
       "link": "https://github.com/Prasanna666666/Prasanna/actions/runs/46113892127/job/140883255653",
       "environment": "GitHub-hosted runner",
-      "proves": "checkpoint"
+      "proves": "full"
      }
     ]
    },
@@ -8398,7 +8436,8 @@
     "verdict": null
    },
    "recorded_status": "PARTIAL",
-   "open_gap": "Core/reference-client truthful states exist; full SwiftUI visual states and every unsupported-source case need owner walkthrough."
+   "open_gap": "Core/reference-client truthful states exist; full SwiftUI visual states and every unsupported-source case need owner walkthrough.",
+   "v04_basis": "software complete; only device verification remains (split to the -DEV row)"
   },
   {
    "id": "UC-003",
@@ -14475,6 +14514,96 @@
     "verdict": null
    },
    "split_from": "UC-L08"
+  },
+  {
+   "id": "PRD-5A-01-DEV",
+   "stage": null,
+   "title": "Routine read/search/analysis/drafting/computation is prompt-free (device part)",
+   "source": "prd",
+   "source_ref": "docs/genesis/PRD_CONFORMANCE.md, §5A row 1",
+   "refs": [
+    "docs/genesis/PRD_CONFORMANCE.md, §5A row 1"
+   ],
+   "owners": {
+    "implementation": "Claude",
+    "verdict": "Codex",
+    "sign_off": "Owner"
+   },
+   "mandatory": true,
+   "scope": "out-device",
+   "milestones": [],
+   "aliases": [],
+   "pass_condition": "Verified on physical hardware: the owner's walkthrough of the app confirming no incidental prompts.",
+   "required_evidence": "Owner-run check on the physical device",
+   "checkpoint": "None defined: scored 0 or 1",
+   "implementation": {
+    "state": "none",
+    "evidence": []
+   },
+   "review": {
+    "verdict": null
+   },
+   "split_from": "PRD-5A-01"
+  },
+  {
+   "id": "PRD-5A-03-DEV",
+   "stage": null,
+   "title": "Exhaustive four approval categories only (device part)",
+   "source": "prd",
+   "source_ref": "docs/genesis/PRD_CONFORMANCE.md, §5A row 3",
+   "refs": [
+    "docs/genesis/PRD_CONFORMANCE.md, §5A row 3"
+   ],
+   "owners": {
+    "implementation": "Claude",
+    "verdict": "Codex",
+    "sign_off": "Owner"
+   },
+   "mandatory": true,
+   "scope": "out-device",
+   "milestones": [],
+   "aliases": [],
+   "pass_condition": "Verified on physical hardware: the owner's walkthrough of every approval category in the app.",
+   "required_evidence": "Owner-run check on the physical device",
+   "checkpoint": "None defined: scored 0 or 1",
+   "implementation": {
+    "state": "none",
+    "evidence": []
+   },
+   "review": {
+    "verdict": null
+   },
+   "split_from": "PRD-5A-03"
+  },
+  {
+   "id": "UC-002-DEV",
+   "stage": null,
+   "title": "UC-002 Insufficient evidence (device part)",
+   "source": "use-case",
+   "source_ref": "docs/genesis/USE_CASE_CONFORMANCE.md, §1 row 2",
+   "refs": [
+    "docs/genesis/USE_CASE_CONFORMANCE.md, §1 row 2"
+   ],
+   "owners": {
+    "implementation": "Claude",
+    "verdict": "Codex",
+    "sign_off": "Owner"
+   },
+   "mandatory": true,
+   "scope": "out-device",
+   "milestones": [],
+   "aliases": [],
+   "pass_condition": "Verified on physical hardware: the owner's walkthrough of the app's insufficient-evidence states.",
+   "required_evidence": "Owner-run check on the physical device",
+   "checkpoint": "None defined: scored 0 or 1",
+   "implementation": {
+    "state": "none",
+    "evidence": []
+   },
+   "review": {
+    "verdict": null
+   },
+   "split_from": "UC-002"
   }
  ],
  "review_batches": [

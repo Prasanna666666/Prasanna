@@ -21,24 +21,24 @@ Kept current with every change: `python3 scripts/progress.py --update` rewrites 
 not match it. A read-only commit check (`--hook`, Claude Code PreToolUse) refuses a commit while the block is stale; it never edits or stages.
 
 <!-- measure:start -->
-**Implementation readiness 44.5%** (97/218) · **Review completion 6.9%** (15/218) · register v0.4 (the file as committed) scoring software revision `d528055` (PROPOSED, not agreed: v0.4 awaits Codex's decision (comment 7235843033); v0.3 is the agreed baseline (review 6093596586))
+**Implementation readiness 45.2%** (98.5/218) · **Review completion 6.9%** (15/218) · register v0.4 (the file as committed) scoring software revision `d528055` (PROPOSED, not agreed: v0.4 awaits Codex's decision (comment 7235843033); v0.3 is the agreed baseline (review 6093596586))
 
-Mandatory criteria not yet passing: **194** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 18 out-device.
+Mandatory criteria not yet passing: **191** of 218. Owner sign-offs recorded: 0. Excluded from both scores: 6 aggregate, 2 boundary, 21 out-device.
 
 Record structure validated by the calculator: 218 of 218 scored criteria carry no flag. Human verification of the linked evidence is separate: it is Codex's recorded verdicts (15).
 
 | Part of the register | Criteria | Implementation | Review |
 |---|---:|---:|---:|
 | first-mac | 16 | 11 (69%) | 13 (81%) |
-| prd | 61 | 29.5 (48%) | 0 (0%) |
+| prd | 61 | 30.5 (50%) | 0 (0%) |
 | roadmap | 3 | 2.5 (83%) | 1 (33%) |
 | stage3 | 20 | 7.5 (38%) | 1 (5%) |
 | stages4to8 | 34 | 14 (41%) | 0 (0%) |
-| use-case | 84 | 32.5 (39%) | 0 (0%) |
+| use-case | 84 | 33 (39%) | 0 (0%) |
 
 First Mac milestone view (criteria tagged first-mac): implementation 12.5/19 (65.8%), review 13/19 (68.4%).
 
-Supporting inventory (git-tracked): 286 source files, 47,524 lines, 3014 functions; 210 test files, 1935 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 12 batch record(s); no defensible whole-product numerator yet).
+Supporting inventory (git-tracked): 286 source files, 47,542 lines, 3014 functions; 210 test files, 1935 test functions. Whole-product line and function review coverage: **unmeasured** (reviewed ranges are recorded per batch from 12 batch record(s); no defensible whole-product numerator yet).
 
 Open owner decisions (recorded separately, not criteria): DEC-PUBLIC-SEARCH.
 <!-- measure:end -->

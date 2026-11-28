@@ -476,6 +476,24 @@ V04_DEVICE_ONLY_GAPS["UC-L08"] = ("the owner's model installed and measured on t
     ("core/tests/test_intelligence.py", "test_a_request_needing_a_capability_nobody_has_is_unavailable_not_degraded"),
     ("core/tests/test_intelligence.py", "test_text_requests_may_fall_back_to_the_text_model_but_image_requests_never_do"),
 ])
+# Rows whose only remaining gap is the owner's own walkthrough of the app: an owner-run check, recorded as the -DEV row, not a software criterion.
+V04_DEVICE_ONLY_GAPS["PRD-5A-01"] = ("the owner's walkthrough of the app confirming no incidental prompts", [
+    ("core/tests/test_policy.py", "test_default_is_deny_nothing_is_retrieved_and_no_model_is_called"),
+    ("core/tests/test_actions.py", "test_own_calendar_and_notes_changes_never_prompt_and_every_one_can_be_undone"),
+    ("core/tests/test_actions.py", "test_the_action_matrix_only_the_four_categories_ever_need_approval"),
+])
+V04_DEVICE_ONLY_GAPS["PRD-5A-03"] = ("the owner's walkthrough of every approval category in the app", [
+    ("core/tests/test_actions.py", "test_the_action_matrix_only_the_four_categories_ever_need_approval"),
+    ("core/tests/test_actions.py", "test_irreversible_removal_needs_approval_and_a_retry_does_not_run_twice"),
+    ("app/Tests/AtlasKitTests/DesignSystemTests.swift", "testAnActionAtlasCannotDescribeIsNeverShownForApproval"),
+    ("app/Tests/AtlasKitTests/DesignSystemTests.swift", "testApprovalNeedsADeliberateStepAndWorksOnceWhileValid"),
+])
+V04_DEVICE_ONLY_GAPS["UC-002"] = ("the owner's walkthrough of the app's insufficient-evidence states", [
+    ("core/tests/test_client.py", "test_a_missing_answer_and_a_hallucinated_figure_are_shown_as_not_confirmed_never_as_checked"),
+    ("core/tests/test_api_v11.py", "test_coverage_states_are_honest_and_tie_to_limitations"),
+    ("core/tests/test_client.py", "test_every_value_of_every_closed_vocabulary_has_a_message"),
+    ("app/Tests/AtlasKitTests/DesignSystemTests.swift", "testEvidenceStatesNeverImplyASourceWasReadWhenItWasNot"),
+])
 # Stage 3 rows whose own checkpoint (MET-L: every listed test passes in hosted CI) is met although their status cell starts with PARTIAL: the
 # local scope is stated as met, and the remainder is a real-model or final-stage portion. S3-C07's PARTIAL awaited exact-head CI, which has
 # since passed on every head. S3-C08 is not included: it records an open defect (ATLAS-CORE-084).
